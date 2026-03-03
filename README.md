@@ -1,115 +1,77 @@
-# Nom du projet  
+# myImageFilter — Trieur local de photos (mosaïque + plein écran)
 
-Courte description du projet : objectif, contexte ou problème résolu.  
+Application web locale pour trier des photos rapidement au clavier (inspirée FastStone), sans cloud.
 
----
+## Choix techniques
 
-## 🚀 Fonctionnalités  
+- **Backend : Java 21 + `HttpServer` natif JDK** (zéro framework lourd, simple à lancer en local).
+- **Frontend : HTML/CSS/JS vanilla** (léger, aucune chaîne de build).
+- **API JSON locale** pour explorer le disque, afficher images/miniatures, supprimer et garder.
 
-- Fonctionnalité principale 1  
-- Fonctionnalité principale 2  
-- Fonctionnalité à venir  
+## Fonctionnalités principales
 
----
+- Navigation dans le disque via dossier courant + remontée parent (`↑`), avec racines accessibles au démarrage.
+- Mosaïque du dossier courant avec ordre obligatoire :
+  1. images,
+  2. dossiers.
+- Tuile sélectionnée avec liseré discret.
+- Plein écran avec navigation `←/→`.
+- `D` : suppression immédiate (corbeille si possible via `Desktop.moveToTrash`, sinon suppression directe).
+- `K` : copie vers dossier Keep avec renommage automatique :
+  - `base.ext`, puis `base_01.ext`, `base_02.ext`, etc. sans écrasement.
+- Dossier Keep configurable au démarrage (`-keepDir`) et modifiable depuis l’UI.
+- Toasts non bloquants pour feedback utilisateur.
 
-## 🛠️ Technologies utilisées  
+## Installation
 
-- Java (version 11/17/21 selon ton projet)  
-- Maven ou Gradle  
-- Spring Boot (si applicable)  
-- Base de données (MySQL, PostgreSQL, MongoDB, etc.)  
+### Prérequis
+- Java 21+
+- Maven 3.9+
 
----
+### Lancer
 
-## 📦 Installation et exécution  
+```bash
+mvn clean package
+java -jar target/myImageFilter-merge-dependencies.jar serve -port 8080 -keepDir /chemin/vers/KEEP
+```
 
-### Prérequis  
-- Java installé (version >= 11)  
-- Maven ou Gradle installé  
+Puis ouvrir : `http://localhost:8080`
 
-### Étapes  
-~~~~bash
-# Cloner le projet
-git clone https://github.com/utilisateur/mon-projet-java.git
-cd mon-projet-java
+## Raccourcis clavier
 
-# Construire le projet avec Maven
-mvn clean install
+### Mosaïque
+- `←/→` : déplacer la sélection
+- `Entrée` : ouvrir image en plein écran **ou** entrer dans dossier
+- `↑` : monter au dossier parent
+- `D` : supprimer image sélectionnée
+- `K` : garder image sélectionnée
+- clic image : plein écran
+- clic dossier : entrer dans dossier
 
-# Lancer l’application
-mvn spring-boot:run
-~~~~
+### Plein écran
+- `←/→` : image précédente / suivante
+- `D` : supprimer image courante puis passer automatiquement à la suivante/précédente
+- `K` : garder image courante
+- `Échap` : retour mosaïque dossier courant
+- `↑` : remonter au parent et basculer en mosaïque du parent
 
----
+## API interne
 
-## ⚙️ Configuration  
+- `GET /api/folder/entries?path=...`
+- `GET /api/image?path=...`
+- `GET /api/thumbnail?path=...&size=...`
+- `POST /api/delete` body `{ "path": "..." }`
+- `POST /api/keep` body `{ "path": "...", "keepDir": "..." }`
+- `GET /api/config`
+- `POST /api/config` body `{ "keepDir": "..." }`
 
-Les variables de configuration sont définies dans `application.properties` ou `application.yml`.  
+## Notes de sécurité
 
-Exemple :  
-~~~~properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/ma_base
-spring.datasource.username=mon_user
-spring.datasource.password=mon_password
-~~~~
+- Les chemins sont normalisés en absolu côté backend.
+- Les actions `delete`/`keep` sont refusées pour les dossiers.
 
----
+## Tests
 
-## 🧪 Tests  
-
-Exécuter les tests unitaires et d’intégration :  
-~~~~bash
+```bash
 mvn test
-~~~~
-
----
-
-## 📚 Documentation API  
-
-Une fois l’application lancée, l’API est accessible à :  
-- API : http://localhost:8080/api/  
-- Swagger (si activé) : http://localhost:8080/swagger-ui.html  
-
----
-
-## 👨‍💻 Contributeurs  
-
-- Nom Prénom – Rôle – [Profil GitHub/LinkedIn]  
-
----
-
-## 📄 Licence  
-
-Ce projet est distribué sous licence **MIT**.  
-Voir le fichier LICENSE pour plus de détails.  
-
----
-
-## 🚀 Déploiement du serveur  
-
-Script PowerShell complet à copier-coller :  
-
-~~~~powershell
-Enter-PSSession -ComputerName 100.77.140.100 -Credential (Get-Credential 'NAS5IEME\Benjamin')
-
-# Stop process qui écoute sur 8080
-$c = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue
-if ($c) { Stop-Process -Id $c.OwningProcess -Force }
-
-# Nettoyer les répertoires distants
-Remove-Item -Path "D:\program\protoServer\bin" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "D:\program\protoServer\cfg" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "D:\program\protoServer\lib" -Recurse -Force -ErrorAction SilentlyContinue
-
-# Recréer les répertoires
-New-Item -ItemType Directory -Path "D:\program\protoServer\bin" -Force | Out-Null
-New-Item -ItemType Directory -Path "D:\program\protoServer\cfg" -Force | Out-Null
-New-Item -ItemType Directory -Path "D:\program\protoServer\lib" -Force | Out-Null
-
-# Copier depuis le client (chemins locaux) vers la machine distante ? à lancer AVANT Enter-PSSession
-# Exemple (côté client) :
-# Copy-Item "C:\Users\NR5145\HD_D\benjch\gitBenjch\time-machine-benjch\target\jreleaser\assemble\app\java-archive\work\app-0.0.1-SNAPSHOT\bin\*" D:\program\protoServer\bin -Recurse -Force -ToSession $session
-
-# Démarrer le serveur
-Start-Process "D:\program\protoServer\run-server.bat"
-~~~~
+```
