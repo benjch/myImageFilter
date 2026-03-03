@@ -77,8 +77,14 @@ function render() {
     tile.dataset.index = index;
 
     if (entry.type === 'image') {
+      const width = entry.width > 0 ? entry.width : '?';
+      const height = entry.height > 0 ? entry.height : '?';
+      const extension = (entry.extension || '').toUpperCase();
       tile.innerHTML = `
-        <img loading="lazy" src="/api/thumbnail?path=${encodeURIComponent(entry.path)}&size=300" alt="${entry.name}" />
+        <div class="thumb-frame">
+          <img loading="lazy" src="/api/thumbnail?path=${encodeURIComponent(entry.path)}&size=360" alt="${entry.name}" />
+        </div>
+        <div class="tile-meta">${width}x${height}${extension ? `    ${extension}` : ''}</div>
         <div class="tile-name">${entry.name}</div>
       `;
     } else {
