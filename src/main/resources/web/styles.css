@@ -63,6 +63,7 @@ button {
   padding: 12px;
   height: calc(100vh - 122px);
   overflow: auto;
+  align-items: start;
 }
 .tile {
   border: 1px solid transparent;
@@ -73,8 +74,9 @@ button {
 .tile.selected { border-color: var(--accent); }
 .tile img {
   width: 100%;
-  height: 130px;
-  object-fit: cover;
+  max-height: 180px;
+  height: auto;
+  object-fit: contain;
   background: #000;
   border-radius: 4px;
 }

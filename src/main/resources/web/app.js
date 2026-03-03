@@ -196,9 +196,19 @@ async function saveKeepDir() {
 }
 
 function onKeyDown(e) {
-  if (e.key === 'ArrowUp') {
+  if (e.key === 'Backspace') {
     e.preventDefault();
     goParent();
+    return;
+  }
+
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (state.fullScreen) {
+      closeViewer();
+    } else {
+      goParent();
+    }
     return;
   }
 
