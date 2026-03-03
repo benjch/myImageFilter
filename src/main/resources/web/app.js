@@ -70,7 +70,7 @@ function render() {
   folderPathInput.value = state.currentPath || DEFAULT_START_PATH;
   imageCount.textContent = `${state.images.length} image(s)`;
 
-  grid.innerHTML = '';
+  const fragment = document.createDocumentFragment();
   state.entries.forEach((entry, index) => {
     const tile = document.createElement('div');
     tile.className = `tile ${entry.type}` + (index === state.selectedIndex ? ' selected' : '');
@@ -82,7 +82,7 @@ function render() {
       const extension = (entry.extension || '').toUpperCase();
       tile.innerHTML = `
         <div class="thumb-frame">
-          <img loading="lazy" src="/api/thumbnail?path=${encodeURIComponent(entry.path)}&size=360" alt="${entry.name}" />
+          <img loading="lazy" decoding="async" src="/api/thumbnail?path=${encodeURIComponent(entry.path)}&size=360" alt="${entry.name}" />
         </div>
         <div class="tile-meta">${width}x${height}${extension ? `    ${extension}` : ''}</div>
         <div class="tile-name">${entry.name}</div>
@@ -91,8 +91,9 @@ function render() {
       tile.innerHTML = `<div class="folder-icon">📁</div><div class="tile-name">${entry.name}</div>`;
     }
 
-    grid.appendChild(tile);
+    fragment.appendChild(tile);
   });
+  grid.replaceChildren(fragment);
 
   ensureSelectedVisible();
 }

@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.CmdLineParser;
@@ -70,6 +71,7 @@ public class ServePhotoSorterCommand implements Command {
                 String path = query.get("path");
                 int size = Integer.parseInt(query.getOrDefault("size", "280"));
                 byte[] bytes = photoService.loadThumbnail(path, size);
+                exchange.getResponseHeaders().set("Cache-Control", "public, max-age=300");
                 sendBinary(exchange, 200, "image/jpeg", bytes);
             }));
 
@@ -122,6 +124,7 @@ public class ServePhotoSorterCommand implements Command {
                             return;
                         }
                         byte[] content = inputStream.readAllBytes();
+                        exchange.getResponseHeaders().set("Cache-Control", "public, max-age=3600");
                         sendBinary(exchange, 200, staticContentType(path), content);
                     }
                 } catch (Exception e) {
@@ -129,7 +132,7 @@ public class ServePhotoSorterCommand implements Command {
                 }
             });
 
-            server.setExecutor(null);
+            server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
             LOGGER.info("Photo sorter started at http://localhost:{}", port);
             LOGGER.info("Use command 'serve -port {} -keepDir /path/to/keep'", port);

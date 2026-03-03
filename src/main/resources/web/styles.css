@@ -80,6 +80,7 @@ button {
   height: calc(100vh - 95px);
   overflow: auto;
   align-items: start;
+  align-content: start;
 }
 
 .tile {

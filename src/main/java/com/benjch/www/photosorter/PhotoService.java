@@ -7,6 +7,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,6 +21,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 public class PhotoService {
 
@@ -172,12 +175,24 @@ public class PhotoService {
     }
 
     private ImageSize readImageSize(Path path) {
-        try (InputStream inputStream = Files.newInputStream(path)) {
-            BufferedImage image = ImageIO.read(inputStream);
-            if (image == null) {
+        try (InputStream inputStream = Files.newInputStream(path);
+                ImageInputStream imageInputStream = ImageIO.createImageInputStream(inputStream)) {
+            if (imageInputStream == null) {
                 return new ImageSize(0, 0);
             }
-            return new ImageSize(image.getWidth(), image.getHeight());
+
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(imageInputStream);
+            if (!readers.hasNext()) {
+                return new ImageSize(0, 0);
+            }
+
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(imageInputStream, true, true);
+                return new ImageSize(reader.getWidth(0), reader.getHeight(0));
+            } finally {
+                reader.dispose();
+            }
         } catch (IOException exception) {
             return new ImageSize(0, 0);
         }
