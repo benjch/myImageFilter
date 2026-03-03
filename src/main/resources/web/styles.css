@@ -14,7 +14,7 @@ body {
 }
 .topbar {
   display: grid;
-  grid-template-columns: 220px 1fr auto;
+  grid-template-columns: 220px minmax(260px, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -22,7 +22,18 @@ body {
   border-bottom: 1px solid #2c2c2c;
 }
 .title { font-size: 22px; font-weight: 700; }
-.path { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path-editor {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.path-input {
+  width: 100%;
+  background: #242424;
+  border: 1px solid #333;
+  color: var(--muted);
+  padding: 8px;
+}
 .controls {
   display: flex;
   gap: 8px;

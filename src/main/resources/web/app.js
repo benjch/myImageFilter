@@ -1,3 +1,5 @@
+const DEFAULT_START_PATH = 'C:\\Users\\NR5145\\HD_D\\benjch\\gitBenjch\\myScrapper\\cover\\n';
+
 const state = {
   currentPath: '',
   images: [],
@@ -10,14 +12,23 @@ const state = {
 };
 
 const grid = document.getElementById('grid');
-const folderPath = document.getElementById('folderPath');
+const folderPathInput = document.getElementById('folderPathInput');
+const openFolderBtn = document.getElementById('openFolderBtn');
 const imageCount = document.getElementById('imageCount');
 const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
 const toast = document.getElementById('toast');
 const keepDirInput = document.getElementById('keepDirInput');
 
+folderPathInput.value = DEFAULT_START_PATH;
+
 document.getElementById('saveKeepBtn').addEventListener('click', saveKeepDir);
+openFolderBtn.addEventListener('click', () => openFolderFromInput().catch(handleError));
+folderPathInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    openFolderFromInput().catch(handleError);
+  }
+});
 
 document.addEventListener('keydown', onKeyDown);
 
@@ -33,7 +44,13 @@ async function init() {
   const cfg = await api('/api/config');
   state.keepDir = cfg.keepDir || '';
   keepDirInput.value = state.keepDir;
-  await loadFolder('');
+  await loadFolder(DEFAULT_START_PATH);
+}
+
+async function openFolderFromInput() {
+  const path = folderPathInput.value.trim() || DEFAULT_START_PATH;
+  closeViewer();
+  await loadFolder(path);
 }
 
 async function loadFolder(path) {
@@ -50,7 +67,7 @@ async function loadFolder(path) {
 }
 
 function render() {
-  folderPath.textContent = state.currentPath || '(racines du disque)';
+  folderPathInput.value = state.currentPath || DEFAULT_START_PATH;
   imageCount.textContent = `${state.images.length} image(s)`;
 
   grid.innerHTML = '';
