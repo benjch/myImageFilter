@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,7 +55,8 @@ public class PhotoService {
                     if (Files.isDirectory(path)) {
                         folders.add(new FolderEntry(path.toString(), path.getFileName().toString(), Files.getLastModifiedTime(path).toMillis()));
                     } else if (isImage(path)) {
-                        images.add(new ImageEntry(path.toString(), path.getFileName().toString(), Files.getLastModifiedTime(path).toMillis()));
+                        ImageSize imageSize = readImageSize(path);
+                        images.add(new ImageEntry(path.toString(), path.getFileName().toString(), Files.getLastModifiedTime(path).toMillis(), imageSize.width(), imageSize.height(), extensionOf(path.getFileName().toString()).replace(".", "")));
                     }
                 } catch (IOException ignored) {
                     // ignore unreadable entries
@@ -169,6 +171,18 @@ public class PhotoService {
         return fileName.substring(idx).toLowerCase(Locale.ROOT);
     }
 
+    private ImageSize readImageSize(Path path) {
+        try (InputStream inputStream = Files.newInputStream(path)) {
+            BufferedImage image = ImageIO.read(inputStream);
+            if (image == null) {
+                return new ImageSize(0, 0);
+            }
+            return new ImageSize(image.getWidth(), image.getHeight());
+        } catch (IOException exception) {
+            return new ImageSize(0, 0);
+        }
+    }
+
     public static String contentTypeFor(String rawPath) {
         String ext = extensionOf(rawPath);
         return switch (ext) {
@@ -194,12 +208,15 @@ public class PhotoService {
     public record FolderEntries(String currentPath, List<ImageEntry> images, List<FolderEntry> folders) {
     }
 
-    public record ImageEntry(String path, String name, long modifiedAt) {
+    public record ImageEntry(String path, String name, long modifiedAt, int width, int height, String extension) {
     }
 
     public record FolderEntry(String path, String name, long modifiedAt) {
     }
 
     public record KeepResult(String path, String filename) {
+    }
+
+    private record ImageSize(int width, int height) {
     }
 }
