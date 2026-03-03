@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.CmdLineParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,6 +135,17 @@ public class ServePhotoSorterCommand implements Command {
             LOGGER.info("Use command 'serve -port {} -keepDir /path/to/keep'", port);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            ServePhotoSorterCommand command = new ServePhotoSorterCommand();
+            new CmdLineParser(command).parseArgument(args);
+            command.execute();
+        } catch (Exception e) {
+            LOGGER.error("Unable to start photo sorter", e);
+            System.exit(2);
         }
     }
 
