@@ -1,0 +1,33 @@
+package com.benjch.www.command;
+
+import java.io.File;
+
+import org.kohsuke.args4j.Option;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.benjch.www.cli.Command;
+import com.benjch.www.myimagefilter.exception.MyImageFilterException;
+
+public class CommandIsWorking implements Command {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(CommandIsWorking.class);
+
+    @Option(name = "-fileConfig", metaVar = "FILE", usage = "properties file to configure CLI", required = false)
+    private File fileConfig;
+
+    @Override
+    public void execute() throws MyImageFilterException {
+        if (fileConfig != null && fileConfig.equals("exception")) {
+            throw new MyImageFilterException();
+        }
+        if (fileConfig != null) {
+            LOGGER.info("command is working, fileConfig : " + fileConfig.getName());
+        }
+    }
+
+    @Override
+    public String getName() {
+        return "commandIsWorking";
+    }
+}

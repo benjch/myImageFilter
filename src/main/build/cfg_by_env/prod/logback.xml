@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="false">
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
+	<if condition='isNull("LOGBACK_PATTERN")'><then><property name="LOGBACK_PATTERN"
+		value="%-22(%date{dd MMM yyyy HH:mm:ss}) %-5level %logger{5}:%message%n" scope="CONTEXT" />
+	</then></if>
+	<if condition='isNull("LOGBACK_PATH")'><then><property name="LOGBACK_PATH"
+		value="logs" scope="CONTEXT" />
+	</then></if>
+	<if condition='isNull("LOGBACK_FILE")'><then><property name="LOGBACK_FILE"
+		value="${ProjectNameLowerCase}.log" scope="CONTEXT" />
+	</then></if>
+	<if condition='isNull("LOGBACK_ROLLING_FILE")'><then><property name="LOGBACK_ROLLING_FILE"
+		value="${ProjectNameLowerCase}-%d{yyyy-MM-dd}.log.gz" scope="CONTEXT" />
+	</then></if>
+	<if condition='isNull("LOGBACK_MAX_HISTORY")'><then><property name="LOGBACK_MAX_HISTORY"
+		value="30" scope="CONTEXT" />
+	</then></if>
+
+	<appender name="ROLLINGFILE"
+		class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>INFO</level>
+		</filter>
+		<file>${LOGBACK_PATH}/${LOGBACK_FILE}</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>${LOGBACK_PATH}/${LOGBACK_ROLLING_FILE}</fileNamePattern>
+			<maxHistory>${LOGBACK_MAX_HISTORY}</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<Pattern>${LOGBACK_PATTERN}</Pattern>
+		</encoder>
+	</appender>
+
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>DEBUG</level>
+		</filter>
+		<encoder>
+			<Pattern>${LOGBACK_PATTERN}</Pattern>
+		</encoder>
+	</appender>
+	
+	<root level="${root-level:-DEBUG}">
+		<appender-ref ref="ROLLINGFILE" />
+		<appender-ref ref="STDOUT" />
+	</root>
+</configuration>
