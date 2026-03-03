@@ -83,6 +83,10 @@ button {
   align-content: start;
 }
 
+.grid:focus {
+  outline: none;
+}
+
 .tile {
   border: 1px solid transparent;
   border-radius: 2px;

@@ -66,6 +66,14 @@ async function loadFolder(path) {
   render();
 }
 
+function focusGridNavigation() {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+    active.blur();
+  }
+  grid.focus({ preventScroll: true });
+}
+
 function render() {
   folderPathInput.value = state.currentPath || DEFAULT_START_PATH;
   imageCount.textContent = `${state.images.length} image(s)`;
@@ -96,6 +104,7 @@ function render() {
   grid.replaceChildren(fragment);
 
   ensureSelectedVisible();
+  focusGridNavigation();
 }
 
 function select(index) {
@@ -104,6 +113,7 @@ function select(index) {
   state.selectedIndex = clamped;
   [...grid.children].forEach((el, i) => el.classList.toggle('selected', i === clamped));
   ensureSelectedVisible();
+  focusGridNavigation();
 }
 
 function ensureSelectedVisible() {
@@ -209,13 +219,9 @@ function onKeyDown(e) {
     return;
   }
 
-  if (e.key === 'ArrowUp') {
+  if (!state.fullScreen && e.key === 'Escape') {
     e.preventDefault();
-    if (state.fullScreen) {
-      closeViewer();
-    } else {
-      goParent();
-    }
+    goParent();
     return;
   }
 
@@ -240,6 +246,12 @@ function onKeyDown(e) {
     select(state.selectedIndex - 1);
   } else if (e.key === 'ArrowRight') {
     select(state.selectedIndex + 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    select(state.selectedIndex - gridColumnCount());
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    select(state.selectedIndex + gridColumnCount());
   } else if (e.key === 'Enter') {
     openSelected().catch(handleError);
   } else if (e.key.toLowerCase() === 'd') {
@@ -247,6 +259,15 @@ function onKeyDown(e) {
   } else if (e.key.toLowerCase() === 'k') {
     keepCurrent().catch(handleError);
   }
+}
+
+function gridColumnCount() {
+  const tiles = [...grid.children];
+  if (tiles.length === 0) return 1;
+
+  const top = tiles[0].offsetTop;
+  const firstRowCount = tiles.findIndex((tile) => tile.offsetTop !== top);
+  return firstRowCount === -1 ? tiles.length : firstRowCount;
 }
 
 function showToast(text) {
