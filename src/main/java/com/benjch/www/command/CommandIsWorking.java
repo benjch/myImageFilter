@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.benjch.www.cli.Command;
-import com.benjch.www.myimagefilter.exception.MyImageFilterException;
 
 public class CommandIsWorking implements Command {
 
@@ -17,12 +16,9 @@ public class CommandIsWorking implements Command {
     private File fileConfig;
 
     @Override
-    public void execute() throws MyImageFilterException {
-        if (fileConfig != null && fileConfig.equals("exception")) {
-            throw new MyImageFilterException();
-        }
+    public void execute() {
         if (fileConfig != null) {
-            LOGGER.info("command is working, fileConfig : " + fileConfig.getName());
+            LOGGER.info("command is working, fileConfig : {}", fileConfig.getName());
         }
     }
 
