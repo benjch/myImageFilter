@@ -21,6 +21,8 @@ import com.benjch.www.cli.Command;
 import com.benjch.www.photosorter.AppConfigStore;
 import com.benjch.www.photosorter.PhotoService;
 import com.benjch.www.photosorter.PhotoService.FolderEntries;
+import com.benjch.www.photosorter.PhotoService.HtmlImportResult;
+import com.benjch.www.photosorter.PhotoService.ImportedSingleImage;
 import com.benjch.www.photosorter.PhotoService.KeepResult;
 import com.benjch.www.photosorter.ThumbnailCache;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -110,6 +112,20 @@ public class ServePhotoSorterCommand implements Command {
                     return;
                 }
                 throw new IllegalArgumentException("Unsupported method");
+            }));
+
+            server.createContext("/api/import-from-html", wrap(exchange -> {
+                requireMethod(exchange, "POST");
+                Map<String, String> body = bodyAsMap(exchange);
+                HtmlImportResult result = photoService.importFromHtml(body.get("folderPath"), body.get("html"));
+                sendJson(exchange, 200, Map.of("status", "ok", "importedCount", result.importedCount(), "files", result.files()));
+            }));
+
+            server.createContext("/api/import-image-from-clipboard", wrap(exchange -> {
+                requireMethod(exchange, "POST");
+                Map<String, String> body = bodyAsMap(exchange);
+                ImportedSingleImage result = photoService.importImageFromClipboard(body.get("folderPath"), body.get("imageBase64"), body.get("mimeType"));
+                sendJson(exchange, 200, Map.of("status", "ok", "path", result.path(), "filename", result.filename()));
             }));
 
             server.createContext("/", exchange -> {
@@ -223,10 +239,10 @@ public class ServePhotoSorterCommand implements Command {
 
     private String suffixForKeepVariant(String variant) {
         return switch (variant == null ? "normal" : variant) {
-            case "normal" -> "_cover";
-            case "back" -> "_back";
-            case "instruction" -> "_instructions";
-            case "divers" -> "_divers";
+            case "normal" -> "_01_cover";
+            case "back" -> "_02_back";
+            case "instruction" -> "_03_instructions";
+            case "divers" -> "_04_divers";
             default -> throw new IllegalArgumentException("Unknown keep variant: " + variant);
         };
     }

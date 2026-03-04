@@ -17,6 +17,9 @@ const state = {
 const grid = document.getElementById('grid');
 const folderPathInput = document.getElementById('folderPathInput');
 const openFolderBtn = document.getElementById('openFolderBtn');
+const loadImagesBtn = document.getElementById('loadImagesBtn');
+const loadImageBtn = document.getElementById('loadImageBtn');
+const refreshBtn = document.getElementById('refreshBtn');
 const imageCount = document.getElementById('imageCount');
 const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
@@ -30,6 +33,15 @@ folderPathInput.value = DEFAULT_START_PATH;
 
 document.getElementById('saveKeepBtn').addEventListener('click', saveKeepDir);
 openFolderBtn.addEventListener('click', () => openFolderFromInput().catch(handleError));
+if (loadImagesBtn) {
+  loadImagesBtn.addEventListener('click', () => importImagesFromClipboardHtml().catch(handleError));
+}
+if (loadImageBtn) {
+  loadImageBtn.addEventListener('click', () => importSingleImageFromClipboard().catch(handleError));
+}
+if (refreshBtn) {
+  refreshBtn.addEventListener('click', () => refreshCurrentFolder().catch(handleError));
+}
 folderPathInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     openFolderFromInput().catch(handleError);
@@ -37,6 +49,8 @@ folderPathInput.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('keydown', onKeyDown);
+viewer.addEventListener('wheel', onViewerWheel, { passive: false });
+viewer.addEventListener('click', onViewerClick);
 
 if (keepActions) {
   keepActions.addEventListener('click', (event) => {
@@ -275,6 +289,17 @@ async function goParent() {
   await loadFolder(parent, previousPath);
 }
 
+async function refreshCurrentFolder() {
+  if (!state.currentPath) {
+    throw new Error('Aucun dossier courant');
+  }
+  const preferredPath = state.fullScreen
+    ? state.images[state.currentImageIndex]?.path ?? null
+    : currentEntry()?.path ?? null;
+  await loadFolder(state.currentPath, preferredPath);
+  showToast('Mosaïque rafraîchie');
+}
+
 async function saveKeepDir() {
   const keepDir = keepDirInput.value.trim();
   const result = await api('/api/config', 'POST', { keepDir });
@@ -282,8 +307,111 @@ async function saveKeepDir() {
   showToast('Dossier Keep enregistré');
 }
 
+async function importImagesFromClipboardHtml() {
+  if (!navigator.clipboard?.readText) {
+    throw new Error('Clipboard API texte indisponible');
+  }
+  if (!state.currentPath) {
+    throw new Error('Aucun dossier courant');
+  }
+
+  const html = await navigator.clipboard.readText();
+  if (!html || !html.trim()) {
+    throw new Error('Le presse-papiers ne contient pas de HTML');
+  }
+
+  const result = await api('/api/import-from-html', 'POST', { folderPath: state.currentPath, html });
+  await loadFolder(state.currentPath);
+  if (result.importedCount > 0) {
+    showToast(`${result.importedCount} image(s) importée(s)`);
+    return;
+  }
+  showToast('Aucune image valide trouvée dans le HTML');
+}
+
+async function importSingleImageFromClipboard() {
+  if (!navigator.clipboard?.read) {
+    throw new Error('Clipboard API binaire indisponible');
+  }
+  if (!state.currentPath) {
+    throw new Error('Aucun dossier courant');
+  }
+
+  const items = await navigator.clipboard.read();
+  for (const item of items) {
+    const imageType = item.types.find((type) => type.startsWith('image/'));
+    if (!imageType) {
+      continue;
+    }
+
+    const blob = await item.getType(imageType);
+    const imageBase64 = await blobToBase64(blob);
+    const result = await api('/api/import-image-from-clipboard', 'POST', {
+      folderPath: state.currentPath,
+      imageBase64,
+      mimeType: imageType
+    });
+    await loadFolder(state.currentPath, result.path);
+    showToast(`Image importée : ${result.filename}`);
+    return;
+  }
+
+  throw new Error('Aucune image trouvée dans le presse-papiers');
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = typeof reader.result === 'string' ? reader.result : '';
+      const commaIndex = value.indexOf(',');
+      if (commaIndex < 0) {
+        reject(new Error('Conversion clipboard impossible'));
+        return;
+      }
+      resolve(value.slice(commaIndex + 1));
+    };
+    reader.onerror = () => reject(new Error('Conversion clipboard impossible'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function onViewerClick(event) {
+  if (!state.fullScreen) return;
+  if (event.target instanceof Element && event.target.closest('#viewerImage')) {
+    return;
+  }
+  closeViewer();
+}
+
+function onViewerWheel(event) {
+  if (!state.fullScreen) return;
+  if (!state.images.length) return;
+
+  event.preventDefault();
+  const direction = event.deltaY > 0 ? 1 : -1;
+  if (direction > 0 && state.currentImageIndex < state.images.length - 1) {
+    state.currentImageIndex += 1;
+    showCurrentImage();
+  } else if (direction < 0 && state.currentImageIndex > 0) {
+    state.currentImageIndex -= 1;
+    showCurrentImage();
+  }
+}
+
 function isBackNavigationKey(e) {
   return e.key === 'Backspace' || e.key === 'BrowserBack' || (e.altKey && e.key === 'ArrowLeft');
+}
+
+function shouldIgnoreGlobalShortcut(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return true;
+  }
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) {
+    return false;
+  }
+  return active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable;
 }
 
 function onKeyDown(e) {
@@ -306,6 +434,25 @@ function onKeyDown(e) {
     e.stopPropagation();
     goParent().catch(handleError);
     return;
+  }
+
+  if (!state.fullScreen && e.key === 'F5') {
+    e.preventDefault();
+    refreshCurrentFolder().catch(handleError);
+    return;
+  }
+
+  if (!state.fullScreen && !shouldIgnoreGlobalShortcut(e)) {
+    if (e.key === 'l' || e.key === 'L') {
+      e.preventDefault();
+      importSingleImageFromClipboard().catch(handleError);
+      return;
+    }
+    if (e.key === 'a' || e.key === 'A') {
+      e.preventDefault();
+      importImagesFromClipboardHtml().catch(handleError);
+      return;
+    }
   }
 
   if (state.fullScreen) {
