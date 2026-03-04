@@ -129,7 +129,7 @@ public class PhotoService {
         thumbnailCache.invalidateByPrefix(path.toString());
     }
 
-    public KeepResult keepImage(String rawPath, String keepDir) throws IOException {
+    public KeepResult keepImage(String rawPath, String keepDir, String keepLabelSuffix) throws IOException {
         Path source = resolveSafePath(rawPath);
         if (!isImage(source)) {
             throw new IllegalArgumentException("Keep only allowed on image files");
@@ -137,12 +137,11 @@ public class PhotoService {
 
         Path keepPath = resolveSafePath(keepDir);
         Files.createDirectories(keepPath);
-        String sourceFileName = source.getFileName().toString();
-        String extension = extensionOfPreserveCase(sourceFileName);
-        String baseName = source.getParent() == null || source.getParent().getFileName() == null
-                ? baseNameWithoutExtension(sourceFileName)
-                : source.getParent().getFileName().toString();
-        Path target = findAvailableName(keepPath, baseName, extension);
+        String folderName = source.getParent() != null && source.getParent().getFileName() != null
+                ? source.getParent().getFileName().toString()
+                : baseNameWithoutExtension(source.getFileName().toString());
+        String suffix = keepLabelSuffix == null ? "" : keepLabelSuffix;
+        Path target = findAvailableName(keepPath, folderName + suffix, ".jpg");
 
         Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES);
         return new KeepResult(target.toString(), target.getFileName().toString());
@@ -169,13 +168,6 @@ public class PhotoService {
         return SUPPORTED_EXTENSIONS.contains(ext.toLowerCase(Locale.ROOT));
     }
 
-    private static String extensionOfPreserveCase(String fileName) {
-        int idx = fileName.lastIndexOf('.');
-        if (idx < 0) {
-            return "";
-        }
-        return fileName.substring(idx);
-    }
 
     private static String baseNameWithoutExtension(String fileName) {
         int idx = fileName.lastIndexOf('.');

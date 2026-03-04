@@ -1,6 +1,6 @@
 const DEFAULT_START_PATH = 'C:\\Users\\NR5145\\HD_D\\benjch\\gitBenjch\\myScrapper\\cover';
 
-const VIEWER_TOOLBAR_BASE_TEXT = 'Échap: retour mosaïque • ←/→ navigation • Suppr supprimer • K garder • Backspace/Échap (mosaïque): dossier parent';
+const VIEWER_TOOLBAR_BASE_TEXT = 'Échap: retour mosaïque • ←/→ navigation • Suppr supprimer • 1/2/3/4 keep • Backspace/Échap (mosaïque): dossier parent';
 
 const state = {
   currentPath: '',
@@ -24,6 +24,7 @@ const viewerToolbar = document.getElementById('viewerToolbar');
 const stretchToggleBtn = document.getElementById('stretchToggleBtn');
 const toast = document.getElementById('toast');
 const keepDirInput = document.getElementById('keepDirInput');
+const keepActions = document.getElementById('keepActions');
 
 folderPathInput.value = DEFAULT_START_PATH;
 
@@ -37,6 +38,13 @@ folderPathInput.addEventListener('keydown', (event) => {
 
 document.addEventListener('keydown', onKeyDown);
 
+if (keepActions) {
+  keepActions.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-keep-variant]');
+    if (!button) return;
+    keepCurrent(button.dataset.keepVariant).catch(handleError);
+  });
+}
 
 if (stretchToggleBtn) {
   stretchToggleBtn.addEventListener('click', () => {
@@ -162,6 +170,7 @@ function openFullscreenFromSelected() {
   state.currentImageIndex = state.images.findIndex((img) => img.path === entry.path);
   showCurrentImage();
   viewer.classList.remove('hidden');
+  updateKeepActionsVisibility();
 }
 
 function setStretchMode(enabled) {
@@ -189,7 +198,13 @@ function showCurrentImage() {
 function closeViewer() {
   state.fullScreen = false;
   viewer.classList.add('hidden');
+  updateKeepActionsVisibility();
   if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
+}
+
+function updateKeepActionsVisibility() {
+  if (!keepActions) return;
+  keepActions.classList.toggle('hidden', !state.fullScreen);
 }
 
 async function deleteCurrent() {
@@ -198,30 +213,54 @@ async function deleteCurrent() {
     showToast('Action non disponible sur un dossier');
     return;
   }
+
+  let mosaicPreferredPath = null;
+  if (!state.fullScreen) {
+    const currentImageIdx = state.images.findIndex((img) => img.path === entry.path);
+    if (currentImageIdx >= 0) {
+      if (currentImageIdx < state.images.length - 1) {
+        mosaicPreferredPath = state.images[currentImageIdx + 1].path;
+      } else if (currentImageIdx > 0) {
+        mosaicPreferredPath = state.images[currentImageIdx - 1].path;
+      }
+    }
+  }
+
   await api('/api/delete', 'POST', { path: entry.path });
   showToast(`Supprimé : ${entry.name}`);
 
   const deletedPath = entry.path;
-  await loadFolder(state.currentPath);
+  await loadFolder(state.currentPath, mosaicPreferredPath);
 
   if (state.fullScreen) {
     let newIndex = state.images.findIndex((i) => i.path === deletedPath);
     if (newIndex < 0) newIndex = Math.min(state.currentImageIndex, state.images.length - 1);
     state.currentImageIndex = newIndex;
     showCurrentImage();
-  } else {
-    select(Math.min(state.selectedIndex, state.entries.length - 1));
   }
 }
 
-async function keepCurrent() {
+async function keepCurrent(variant = 'normal') {
   const entry = state.fullScreen ? state.images[state.currentImageIndex] : currentEntry();
   if (!entry || entry.type === 'folder') {
     showToast('Action non disponible sur un dossier');
     return;
   }
-  const result = await api('/api/keep', 'POST', { path: entry.path, keepDir: state.keepDir });
+
+  const result = await api('/api/keep', 'POST', { path: entry.path, keepDir: state.keepDir, variant });
   showToast(`Copié dans Keep : ${result.filename}`);
+
+  if (state.fullScreen) {
+    if (state.currentImageIndex < state.images.length - 1) {
+      state.currentImageIndex += 1;
+      showCurrentImage();
+    }
+    return;
+  }
+
+  const currentIndex = state.selectedIndex;
+  const nextIndex = currentIndex < state.entries.length - 1 ? currentIndex + 1 : Math.max(0, currentIndex - 1);
+  select(nextIndex);
 }
 
 async function goParent() {
@@ -280,8 +319,14 @@ function onKeyDown(e) {
       closeViewer();
     } else if (e.key === 'Delete') {
       deleteCurrent().catch(handleError);
-    } else if (e.key.toLowerCase() === 'k') {
-      keepCurrent().catch(handleError);
+    } else if (e.key === '1') {
+      keepCurrent('normal').catch(handleError);
+    } else if (e.key === '2') {
+      keepCurrent('back').catch(handleError);
+    } else if (e.key === '3') {
+      keepCurrent('instruction').catch(handleError);
+    } else if (e.key === '4') {
+      keepCurrent('divers').catch(handleError);
     }
     return;
   }
@@ -300,8 +345,14 @@ function onKeyDown(e) {
     openSelected().catch(handleError);
   } else if (e.key === 'Delete') {
     deleteCurrent().catch(handleError);
-  } else if (e.key.toLowerCase() === 'k') {
-    keepCurrent().catch(handleError);
+  } else if (e.key === '1') {
+    keepCurrent('normal').catch(handleError);
+  } else if (e.key === '2') {
+    keepCurrent('back').catch(handleError);
+  } else if (e.key === '3') {
+    keepCurrent('instruction').catch(handleError);
+  } else if (e.key === '4') {
+    keepCurrent('divers').catch(handleError);
   }
 }
 
