@@ -292,15 +292,7 @@ async function goParent() {
     return;
   }
 
-  const trimmed = /[\\/]$/.test(sourcePath) && sourcePath.length > 1
-    ? sourcePath.slice(0, -1)
-    : sourcePath;
-  const slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-  let parent = slash <= 0 ? trimmed.slice(0, 1) : trimmed.slice(0, slash);
-
-  if (/^[A-Za-z]:$/.test(parent)) {
-    parent += '\\';
-  }
+  const parent = resolveParentPath(sourcePath);
 
   if (!parent || parent === sourcePath) {
     showToast('Déjà à la racine');
@@ -310,6 +302,53 @@ async function goParent() {
   const previousPath = sourcePath;
   closeViewer();
   await loadFolder(parent, previousPath);
+}
+
+function resolveParentPath(path) {
+  const trimmedPath = path.trim();
+  if (!trimmedPath) {
+    return null;
+  }
+
+  const preferBackslash = trimmedPath.includes('\\');
+  const unixified = trimmedPath.replace(/\\/g, '/');
+
+  const windowsDriveMatch = unixified.match(/^([A-Za-z]:)(?:\/|$)(.*)$/);
+  if (windowsDriveMatch) {
+    const drive = windowsDriveMatch[1];
+    const rest = windowsDriveMatch[2].replace(/\/+$/, '');
+    const segments = rest ? rest.split('/').filter(Boolean) : [];
+    if (segments.length === 0) {
+      return null;
+    }
+    segments.pop();
+    const parentUnix = segments.length > 0 ? `${drive}/${segments.join('/')}` : `${drive}/`;
+    return preferBackslash ? parentUnix.replace(/\//g, '\\') : parentUnix;
+  }
+
+  if (unixified.startsWith('//')) {
+    const uncParts = unixified.split('/').filter(Boolean);
+    if (uncParts.length < 3) {
+      return null;
+    }
+    const root = `//${uncParts[0]}/${uncParts[1]}`;
+    const tail = uncParts.slice(2, -1);
+    const parentUnix = tail.length > 0 ? `${root}/${tail.join('/')}` : root;
+    return preferBackslash ? parentUnix.replace(/\//g, '\\') : parentUnix;
+  }
+
+  const cleanUnix = unixified.length > 1 ? unixified.replace(/\/+$/, '') : unixified;
+  if (cleanUnix === '/') {
+    return null;
+  }
+  const slash = cleanUnix.lastIndexOf('/');
+  if (slash < 0) {
+    return null;
+  }
+  if (slash === 0) {
+    return '/';
+  }
+  return cleanUnix.slice(0, slash);
 }
 
 

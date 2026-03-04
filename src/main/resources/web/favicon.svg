@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Champignon style jeu rétro">
+  <rect width="64" height="64" rx="12" fill="#7ec8ff"/>
+  <ellipse cx="32" cy="25" rx="24" ry="18" fill="#d7262f"/>
+  <circle cx="22" cy="22" r="5" fill="#fff6e5"/>
+  <circle cx="42" cy="22" r="5" fill="#fff6e5"/>
+  <rect x="20" y="28" width="24" height="20" rx="8" fill="#f6cf9f"/>
+  <ellipse cx="25" cy="37" rx="2.5" ry="4" fill="#1f2937"/>
+  <ellipse cx="39" cy="37" rx="2.5" ry="4" fill="#1f2937"/>
+  <path d="M22 45c2 3 5 5 10 5s8-2 10-5" stroke="#5b3716" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>
