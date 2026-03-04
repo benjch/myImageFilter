@@ -66,7 +66,7 @@ async function openFolderFromInput() {
   await loadFolder(path);
 }
 
-async function loadFolder(path) {
+async function loadFolder(path, preferredSelectedPath = null) {
   const data = await api(`/api/folder/entries?path=${encodeURIComponent(path)}`);
   state.currentPath = data.currentPath;
   state.images = data.images;
@@ -75,7 +75,12 @@ async function loadFolder(path) {
     ...state.images.map((x) => ({ ...x, type: 'image' })),
     ...state.folders.map((x) => ({ ...x, type: 'folder' }))
   ];
-  state.selectedIndex = 0;
+  if (preferredSelectedPath) {
+    const preferredIndex = state.entries.findIndex((entry) => entry.path === preferredSelectedPath);
+    state.selectedIndex = preferredIndex >= 0 ? preferredIndex : 0;
+  } else {
+    state.selectedIndex = 0;
+  }
   render();
 }
 
@@ -219,15 +224,16 @@ async function keepCurrent() {
   showToast(`Copié dans Keep : ${result.filename}`);
 }
 
-function goParent() {
+async function goParent() {
   if (!state.currentPath) return;
   const trimmed = state.currentPath.endsWith('/') && state.currentPath.length > 1
     ? state.currentPath.slice(0, -1)
     : state.currentPath;
   const slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
   const parent = slash <= 0 ? trimmed.slice(0, 1) : trimmed.slice(0, slash);
+  const previousPath = state.currentPath;
   closeViewer();
-  loadFolder(parent);
+  await loadFolder(parent, previousPath);
 }
 
 async function saveKeepDir() {
@@ -252,14 +258,14 @@ function onKeyDown(e) {
   if (!state.fullScreen && isBackNavigationKey(e)) {
     e.preventDefault();
     e.stopPropagation();
-    goParent();
+    goParent().catch(handleError);
     return;
   }
 
   if (!state.fullScreen && e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
-    goParent();
+    goParent().catch(handleError);
     return;
   }
 
