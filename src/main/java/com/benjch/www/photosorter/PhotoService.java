@@ -137,8 +137,11 @@ public class PhotoService {
 
         Path keepPath = resolveSafePath(keepDir);
         Files.createDirectories(keepPath);
-        String extension = extensionOf(source.getFileName().toString());
-        String baseName = source.getParent().getFileName() == null ? "root" : source.getParent().getFileName().toString().toLowerCase(Locale.ROOT);
+        String sourceFileName = source.getFileName().toString();
+        String extension = extensionOfPreserveCase(sourceFileName);
+        String baseName = source.getParent() == null || source.getParent().getFileName() == null
+                ? baseNameWithoutExtension(sourceFileName)
+                : source.getParent().getFileName().toString();
         Path target = findAvailableName(keepPath, baseName, extension);
 
         Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES);
@@ -164,6 +167,22 @@ public class PhotoService {
     public static boolean isImage(Path path) {
         String ext = extensionOf(path.getFileName().toString()).replace(".", "");
         return SUPPORTED_EXTENSIONS.contains(ext.toLowerCase(Locale.ROOT));
+    }
+
+    private static String extensionOfPreserveCase(String fileName) {
+        int idx = fileName.lastIndexOf('.');
+        if (idx < 0) {
+            return "";
+        }
+        return fileName.substring(idx);
+    }
+
+    private static String baseNameWithoutExtension(String fileName) {
+        int idx = fileName.lastIndexOf('.');
+        if (idx <= 0) {
+            return fileName;
+        }
+        return fileName.substring(0, idx);
     }
 
     private static String extensionOf(String fileName) {
