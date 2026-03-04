@@ -232,6 +232,27 @@ button {
   z-index: 30;
 }
 
+
+.viewer-mosaic-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 26;
+  min-width: 150px;
+  background: #f2c94c;
+  color: #1f1f1f;
+}
+
+.viewer-mosaic-btn .key {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.viewer-mosaic-btn .label {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .keep-actions {
   position: absolute;
   bottom: 16px;

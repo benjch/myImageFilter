@@ -17,6 +17,7 @@ const state = {
 const grid = document.getElementById('grid');
 const folderPathInput = document.getElementById('folderPathInput');
 const openFolderBtn = document.getElementById('openFolderBtn');
+const goParentBtn = document.getElementById('goParentBtn');
 const loadImagesBtn = document.getElementById('loadImagesBtn');
 const loadImageBtn = document.getElementById('loadImageBtn');
 const refreshBtn = document.getElementById('refreshBtn');
@@ -25,6 +26,7 @@ const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
 const viewerToolbar = document.getElementById('viewerToolbar');
 const stretchToggleBtn = document.getElementById('stretchToggleBtn');
+const mosaicModeBtn = document.getElementById('mosaicModeBtn');
 const toast = document.getElementById('toast');
 const keepDirInput = document.getElementById('keepDirInput');
 const keepActions = document.getElementById('keepActions');
@@ -41,6 +43,9 @@ if (loadImageBtn) {
 }
 if (refreshBtn) {
   refreshBtn.addEventListener('click', () => refreshCurrentFolder().catch(handleError));
+}
+if (goParentBtn) {
+  goParentBtn.addEventListener('click', () => goParent().catch(handleError));
 }
 folderPathInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
@@ -64,6 +69,9 @@ if (stretchToggleBtn) {
   stretchToggleBtn.addEventListener('click', () => {
     setStretchMode(!state.stretchMode);
   });
+}
+if (mosaicModeBtn) {
+  mosaicModeBtn.addEventListener('click', closeViewer);
 }
 setStretchMode(false);
 
@@ -278,16 +286,32 @@ async function keepCurrent(variant = 'normal') {
 }
 
 async function goParent() {
-  if (!state.currentPath) return;
-  const trimmed = state.currentPath.endsWith('/') && state.currentPath.length > 1
-    ? state.currentPath.slice(0, -1)
-    : state.currentPath;
+  const sourcePath = state.currentPath || folderPathInput.value.trim();
+  if (!sourcePath) {
+    showToast('Aucun dossier courant');
+    return;
+  }
+
+  const trimmed = /[\\/]$/.test(sourcePath) && sourcePath.length > 1
+    ? sourcePath.slice(0, -1)
+    : sourcePath;
   const slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-  const parent = slash <= 0 ? trimmed.slice(0, 1) : trimmed.slice(0, slash);
-  const previousPath = state.currentPath;
+  let parent = slash <= 0 ? trimmed.slice(0, 1) : trimmed.slice(0, slash);
+
+  if (/^[A-Za-z]:$/.test(parent)) {
+    parent += '\\';
+  }
+
+  if (!parent || parent === sourcePath) {
+    showToast('Déjà à la racine');
+    return;
+  }
+
+  const previousPath = sourcePath;
   closeViewer();
   await loadFolder(parent, previousPath);
 }
+
 
 async function refreshCurrentFolder() {
   if (!state.currentPath) {
