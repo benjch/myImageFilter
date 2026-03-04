@@ -7,6 +7,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -15,9 +21,14 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
@@ -27,6 +38,8 @@ import javax.imageio.stream.ImageInputStream;
 public class PhotoService {
 
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
+    private static final Pattern IMG_SRC_PATTERN = Pattern.compile("<img\\b[^>]*\\bsrc\\s*=\\s*(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
 
     private final ThumbnailCache thumbnailCache;
 
@@ -147,6 +160,59 @@ public class PhotoService {
         return new KeepResult(target.toString(), target.getFileName().toString());
     }
 
+    public HtmlImportResult importFromHtml(String folderPath, String html) throws IOException {
+        Path folder = resolveSafePath(folderPath);
+        if (!Files.isDirectory(folder)) {
+            throw new IllegalArgumentException("Not a directory: " + folderPath);
+        }
+        if (html == null || html.isBlank()) {
+            throw new IllegalArgumentException("HTML content is required");
+        }
+
+        List<String> files = new ArrayList<>();
+        Matcher matcher = IMG_SRC_PATTERN.matcher(html);
+        while (matcher.find()) {
+            String src = matcher.group(2) == null ? "" : matcher.group(2).trim();
+            if (src.isBlank()) {
+                continue;
+            }
+            try {
+                ImportedImage imported = loadImageFromSrc(src);
+                Path target = findAvailableName(folder, imported.baseName(), "." + imported.extension());
+                Files.write(target, imported.bytes());
+                files.add(target.getFileName().toString());
+            } catch (Exception ignored) {
+                // continue on invalid source
+            }
+        }
+
+        return new HtmlImportResult(files.size(), files);
+    }
+
+    public ImportedSingleImage importImageFromClipboard(String folderPath, String imageBase64, String mimeType) throws IOException {
+        Path folder = resolveSafePath(folderPath);
+        if (!Files.isDirectory(folder)) {
+            throw new IllegalArgumentException("Not a directory: " + folderPath);
+        }
+        if (imageBase64 == null || imageBase64.isBlank()) {
+            throw new IllegalArgumentException("imageBase64 is required");
+        }
+
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(imageBase64);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Invalid base64 image payload");
+        }
+
+        String extension = detectExtension(bytes).orElseGet(() -> extensionFromMime(mimeType).orElseThrow(() -> new IllegalArgumentException("Unsupported clipboard image format")));
+        int nextNumber = firstFreeNumericBasename(folder);
+        String filename = formatNumericName(nextNumber) + "." + extension;
+        Path output = folder.resolve(filename);
+        Files.write(output, bytes);
+        return new ImportedSingleImage(output.toString(), filename);
+    }
+
     Path findAvailableName(Path keepDir, String base, String extension) {
         Path first = keepDir.resolve(base + extension);
         if (!Files.exists(first)) {
@@ -183,6 +249,171 @@ public class PhotoService {
             return "";
         }
         return fileName.substring(idx).toLowerCase(Locale.ROOT);
+    }
+
+    private ImportedImage loadImageFromSrc(String src) throws Exception {
+        if (src.regionMatches(true, 0, "data:", 0, 5)) {
+            return parseDataUrl(src);
+        }
+        URI uri = URI.create(src);
+        if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new IllegalArgumentException("Unsupported src scheme");
+        }
+        HttpRequest request = HttpRequest.newBuilder(uri).GET().build();
+        HttpResponse<byte[]> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalArgumentException("Download failed: HTTP " + response.statusCode());
+        }
+        byte[] bytes = response.body();
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("Downloaded image is empty");
+        }
+
+        String contentType = response.headers().firstValue("Content-Type").orElse("");
+        String extension = detectExtension(bytes)
+                .or(() -> extensionFromMime(contentType))
+                .or(() -> extensionFromPath(uri.getPath()))
+                .orElseThrow(() -> new IllegalArgumentException("Unsupported image format"));
+        String baseName = sanitizedBaseNameFromUri(uri);
+        return new ImportedImage(bytes, extension, baseName);
+    }
+
+    private ImportedImage parseDataUrl(String src) {
+        int comma = src.indexOf(',');
+        if (comma < 0) {
+            throw new IllegalArgumentException("Invalid data URL");
+        }
+        String metadata = src.substring(5, comma);
+        String payload = src.substring(comma + 1);
+        if (payload.isBlank()) {
+            throw new IllegalArgumentException("Empty data URL payload");
+        }
+        if (!metadata.toLowerCase(Locale.ROOT).contains(";base64")) {
+            throw new IllegalArgumentException("Only base64 data URL is supported");
+        }
+
+        String mimeType = metadata.split(";", 2)[0];
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(payload);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid base64 data URL payload");
+        }
+        String extension = detectExtension(bytes)
+                .or(() -> extensionFromMime(mimeType))
+                .orElseThrow(() -> new IllegalArgumentException("Unsupported image format in data URL"));
+        return new ImportedImage(bytes, extension, "clipboard");
+    }
+
+    private Optional<String> detectExtension(byte[] bytes) {
+        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (input == null) {
+                return Optional.empty();
+            }
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) {
+                return Optional.empty();
+            }
+            ImageReader reader = readers.next();
+            try {
+                String format = reader.getFormatName();
+                return normalizeFormat(format);
+            } finally {
+                reader.dispose();
+            }
+        } catch (IOException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<String> normalizeFormat(String format) {
+        if (format == null || format.isBlank()) {
+            return Optional.empty();
+        }
+        String normalized = format.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "jpg", "jpeg" -> Optional.of("jpg");
+            case "png" -> Optional.of("png");
+            case "gif" -> Optional.of("gif");
+            case "webp" -> Optional.of("webp");
+            default -> Optional.empty();
+        };
+    }
+
+    private Optional<String> extensionFromMime(String mimeType) {
+        if (mimeType == null || mimeType.isBlank()) {
+            return Optional.empty();
+        }
+        String normalized = mimeType.toLowerCase(Locale.ROOT).trim();
+        int separator = normalized.indexOf(';');
+        if (separator >= 0) {
+            normalized = normalized.substring(0, separator).trim();
+        }
+        return switch (normalized) {
+            case "image/jpeg", "image/jpg" -> Optional.of("jpg");
+            case "image/png" -> Optional.of("png");
+            case "image/gif" -> Optional.of("gif");
+            case "image/webp" -> Optional.of("webp");
+            default -> Optional.empty();
+        };
+    }
+
+    private Optional<String> extensionFromPath(String path) {
+        if (path == null || path.isBlank()) {
+            return Optional.empty();
+        }
+        String decoded = URLDecoder.decode(path, StandardCharsets.UTF_8);
+        int slash = decoded.lastIndexOf('/');
+        String filename = slash >= 0 ? decoded.substring(slash + 1) : decoded;
+        String ext = extensionOf(filename).replace(".", "");
+        if (SUPPORTED_EXTENSIONS.contains(ext)) {
+            return Optional.of(ext);
+        }
+        return Optional.empty();
+    }
+
+    private String sanitizedBaseNameFromUri(URI uri) {
+        String path = uri.getPath();
+        if (path == null || path.isBlank()) {
+            return "imported";
+        }
+        String decoded = URLDecoder.decode(path, StandardCharsets.UTF_8);
+        int slash = decoded.lastIndexOf('/');
+        String filename = slash >= 0 ? decoded.substring(slash + 1) : decoded;
+        String base = baseNameWithoutExtension(filename).replaceAll("[^a-zA-Z0-9._-]", "-");
+        if (base.isBlank()) {
+            return "imported";
+        }
+        if (base.length() > 64) {
+            return base.substring(0, 64);
+        }
+        return base;
+    }
+
+    private int firstFreeNumericBasename(Path folder) throws IOException {
+        Set<Integer> used = new HashSet<>();
+        try (Stream<Path> stream = Files.list(folder)) {
+            stream.filter(Files::isRegularFile).forEach(path -> {
+                String name = path.getFileName().toString();
+                String base = baseNameWithoutExtension(name);
+                if (base.matches("\\d+")) {
+                    try {
+                        used.add(Integer.parseInt(base));
+                    } catch (NumberFormatException ignored) {
+                        // ignore huge values
+                    }
+                }
+            });
+        }
+        int candidate = 1;
+        while (used.contains(candidate)) {
+            candidate++;
+        }
+        return candidate;
+    }
+
+    private String formatNumericName(int value) {
+        return value < 100 ? String.format("%02d", value) : Integer.toString(value);
     }
 
     private ImageSize readImageSize(Path path) {
@@ -241,6 +472,15 @@ public class PhotoService {
     }
 
     public record KeepResult(String path, String filename) {
+    }
+
+    public record HtmlImportResult(int importedCount, List<String> files) {
+    }
+
+    public record ImportedSingleImage(String path, String filename) {
+    }
+
+    private record ImportedImage(byte[] bytes, String extension, String baseName) {
     }
 
     private record ImageSize(int width, int height) {
