@@ -1,4 +1,6 @@
-const DEFAULT_START_PATH = 'C:\\Users\\NR5145\\HD_D\\benjch\\gitBenjch\\myScrapper\\cover\\n';
+const DEFAULT_START_PATH = 'C:\\Users\\NR5145\\HD_D\\benjch\\gitBenjch\\myScrapper\\cover';
+
+const VIEWER_TOOLBAR_BASE_TEXT = 'Échap: retour mosaïque • ←/→ navigation • Suppr supprimer • K garder • Backspace/Échap (mosaïque): dossier parent';
 
 const state = {
   currentPath: '',
@@ -8,7 +10,8 @@ const state = {
   selectedIndex: 0,
   fullScreen: false,
   currentImageIndex: 0,
-  keepDir: ''
+  keepDir: '',
+  stretchMode: false
 };
 
 const grid = document.getElementById('grid');
@@ -17,6 +20,8 @@ const openFolderBtn = document.getElementById('openFolderBtn');
 const imageCount = document.getElementById('imageCount');
 const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
+const viewerToolbar = document.getElementById('viewerToolbar');
+const stretchToggleBtn = document.getElementById('stretchToggleBtn');
 const toast = document.getElementById('toast');
 const keepDirInput = document.getElementById('keepDirInput');
 
@@ -31,6 +36,14 @@ folderPathInput.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('keydown', onKeyDown);
+
+
+if (stretchToggleBtn) {
+  stretchToggleBtn.addEventListener('click', () => {
+    setStretchMode(!state.stretchMode);
+  });
+}
+setStretchMode(false);
 
 grid.addEventListener('click', (event) => {
   const tile = event.target.closest('.tile');
@@ -146,20 +159,32 @@ function openFullscreenFromSelected() {
   viewer.classList.remove('hidden');
 }
 
+function setStretchMode(enabled) {
+  state.stretchMode = enabled;
+  viewerImage.classList.toggle('stretched', enabled);
+  if (stretchToggleBtn) {
+    stretchToggleBtn.setAttribute('aria-pressed', String(enabled));
+    stretchToggleBtn.textContent = `Mode étiré: ${enabled ? 'ON' : 'OFF'}`;
+  }
+}
+
 function showCurrentImage() {
   if (state.images.length === 0) {
     viewer.classList.add('hidden');
     state.fullScreen = false;
+    if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
     return;
   }
   state.currentImageIndex = Math.max(0, Math.min(state.images.length - 1, state.currentImageIndex));
   const img = state.images[state.currentImageIndex];
   viewerImage.src = `/api/image?path=${encodeURIComponent(img.path)}`;
+  if (viewerToolbar) viewerToolbar.textContent = `${VIEWER_TOOLBAR_BASE_TEXT}\n${img.path}`;
 }
 
 function closeViewer() {
   state.fullScreen = false;
   viewer.classList.add('hidden');
+  if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
 }
 
 async function deleteCurrent() {
@@ -212,15 +237,28 @@ async function saveKeepDir() {
   showToast('Dossier Keep enregistré');
 }
 
+function isBackNavigationKey(e) {
+  return e.key === 'Backspace' || e.key === 'BrowserBack' || (e.altKey && e.key === 'ArrowLeft');
+}
+
 function onKeyDown(e) {
-  if (e.key === 'Backspace') {
+  if (state.fullScreen && (isBackNavigationKey(e) || e.key === 'Escape')) {
     e.preventDefault();
+    e.stopPropagation();
+    closeViewer();
+    return;
+  }
+
+  if (!state.fullScreen && isBackNavigationKey(e)) {
+    e.preventDefault();
+    e.stopPropagation();
     goParent();
     return;
   }
 
   if (!state.fullScreen && e.key === 'Escape') {
     e.preventDefault();
+    e.stopPropagation();
     goParent();
     return;
   }
@@ -234,7 +272,7 @@ function onKeyDown(e) {
       showCurrentImage();
     } else if (e.key === 'Escape') {
       closeViewer();
-    } else if (e.key.toLowerCase() === 'd') {
+    } else if (e.key === 'Delete') {
       deleteCurrent().catch(handleError);
     } else if (e.key.toLowerCase() === 'k') {
       keepCurrent().catch(handleError);
@@ -254,7 +292,7 @@ function onKeyDown(e) {
     select(state.selectedIndex + gridColumnCount());
   } else if (e.key === 'Enter') {
     openSelected().catch(handleError);
-  } else if (e.key.toLowerCase() === 'd') {
+  } else if (e.key === 'Delete') {
     deleteCurrent().catch(handleError);
   } else if (e.key.toLowerCase() === 'k') {
     keepCurrent().catch(handleError);

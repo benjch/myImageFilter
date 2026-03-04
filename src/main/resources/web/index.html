@@ -26,7 +26,10 @@
   </main>
 
   <div id="viewer" class="viewer hidden">
-    <div class="viewer-toolbar">Échap: retour mosaïque • ←/→ navigation • D supprimer • K garder • Backspace/Échap (mosaïque): dossier parent</div>
+    <div class="viewer-controls">
+      <div id="viewerToolbar" class="viewer-toolbar">Échap: retour mosaïque • ←/→ navigation • Suppr supprimer • K garder • Backspace/Échap (mosaïque): dossier parent</div>
+      <button id="stretchToggleBtn" class="stretch-toggle" type="button" aria-pressed="false">Mode étiré: OFF</button>
+    </div>
     <img id="viewerImage" alt="Photo" />
   </div>
 
