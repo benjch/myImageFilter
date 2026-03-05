@@ -624,6 +624,10 @@ async function copySelectedImageToClipboard() {
 
 function onViewerClick(event) {
   if (!state.fullScreen) return;
+  if (event.target === viewerImage) {
+    setStretchMode(!state.stretchMode);
+    return;
+  }
   if (event.target !== viewer) {
     return;
   }
