@@ -104,6 +104,7 @@ function persistUiState() {
   };
 
   localStorage.setItem(RESTORE_STORAGE_KEY, JSON.stringify(payload));
+  syncUrlWithUiState(payload);
 }
 
 function readPersistedUiState() {
@@ -118,12 +119,64 @@ function readPersistedUiState() {
   }
 }
 
+function readUiStateFromUrl() {
+  const url = new URL(window.location.href);
+  const currentPath = url.searchParams.get('path');
+  const selectedPath = url.searchParams.get('selected');
+  const selectedImagePath = url.searchParams.get('image');
+  const fullScreen = url.searchParams.get('fullscreen') === '1';
+
+  if (!currentPath) {
+    return null;
+  }
+
+  return {
+    currentPath,
+    selectedPath,
+    selectedImagePath,
+    fullScreen
+  };
+}
+
+function syncUrlWithUiState(payload) {
+  const url = new URL(window.location.href);
+
+  if (payload.currentPath) {
+    url.searchParams.set('path', payload.currentPath);
+  } else {
+    url.searchParams.delete('path');
+  }
+
+  if (payload.selectedPath) {
+    url.searchParams.set('selected', payload.selectedPath);
+  } else {
+    url.searchParams.delete('selected');
+  }
+
+  if (payload.selectedImagePath) {
+    url.searchParams.set('image', payload.selectedImagePath);
+  } else {
+    url.searchParams.delete('image');
+  }
+
+  if (payload.fullScreen) {
+    url.searchParams.set('fullscreen', '1');
+  } else {
+    url.searchParams.delete('fullscreen');
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    window.history.replaceState(null, '', nextUrl);
+  }
+}
+
 async function init() {
   const cfg = await api('/api/config');
   state.keepDir = cfg.keepDir || '';
   keepDirInput.value = state.keepDir;
 
-  const persisted = readPersistedUiState();
+  const persisted = readUiStateFromUrl() || readPersistedUiState();
   const startupPath = persisted?.currentPath || DEFAULT_START_PATH;
   const preferredPath = persisted?.selectedPath || persisted?.selectedImagePath || null;
 
