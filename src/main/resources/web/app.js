@@ -736,6 +736,8 @@ function onKeyDown(e) {
     } else if (e.key === 'ArrowRight') {
       state.currentImageIndex++;
       showCurrentImage();
+    } else if (e.key === 'm' || e.key === 'M') {
+      setStretchMode(!state.stretchMode);
     } else if (e.key === 'Escape') {
       closeViewer();
     } else if (e.key === 'Delete') {
