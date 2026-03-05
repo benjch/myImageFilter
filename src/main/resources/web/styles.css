@@ -120,8 +120,9 @@ button {
 }
 
 .tile.selected {
+  border-width: 2px;
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px #85acee;
+  box-shadow: inset 0 0 0 3px #1032E0;
   background: #f7fbff;
 }
 
