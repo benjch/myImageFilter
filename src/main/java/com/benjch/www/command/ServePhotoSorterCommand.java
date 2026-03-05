@@ -263,6 +263,15 @@ public class ServePhotoSorterCommand implements Command {
         if (path.endsWith(".html")) {
             return "text/html; charset=utf-8";
         }
+        if (path.endsWith(".svg")) {
+            return "image/svg+xml";
+        }
+        if (path.endsWith(".ico")) {
+            return "image/x-icon";
+        }
+        if (path.endsWith(".png")) {
+            return "image/png";
+        }
         return "application/octet-stream";
     }
 }

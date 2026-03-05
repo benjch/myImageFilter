@@ -618,6 +618,8 @@ async function copySelectedImageToClipboard() {
   const mimeType = imageBlob.type || 'image/png';
   await navigator.clipboard.write([new ClipboardItem({ [mimeType]: imageBlob })]);
   showToast(`Image copiée dans le presse-papiers : ${entry.name}`);
+
+  await refreshCurrentFolder();
 }
 
 function onViewerClick(event) {
