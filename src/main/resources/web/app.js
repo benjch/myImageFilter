@@ -2,6 +2,8 @@ const DEFAULT_START_PATH = 'C:\\Users\\NR5145\\HD_D\\benjch\\gitBenjch\\myScrapp
 
 const VIEWER_TOOLBAR_BASE_TEXT = 'Échap: retour mosaïque • ←/→ navigation • Suppr supprimer • 1/2/3/4 keep • Backspace/Échap (mosaïque): dossier parent';
 
+const RESTORE_STORAGE_KEY = 'myImageFilter.uiState';
+
 const state = {
   currentPath: '',
   images: [],
@@ -21,6 +23,7 @@ const goParentBtn = document.getElementById('goParentBtn');
 const loadImagesBtn = document.getElementById('loadImagesBtn');
 const loadImageBtn = document.getElementById('loadImageBtn');
 const refreshBtn = document.getElementById('refreshBtn');
+const uploadBtn = document.getElementById('uploadBtn');
 const imageCount = document.getElementById('imageCount');
 const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
@@ -44,6 +47,9 @@ if (loadImageBtn) {
 if (refreshBtn) {
   refreshBtn.addEventListener('click', () => refreshCurrentFolder().catch(handleError));
 }
+if (uploadBtn) {
+  uploadBtn.addEventListener('click', () => copySelectedImageToClipboard().catch(handleError));
+}
 if (goParentBtn) {
   goParentBtn.addEventListener('click', () => goParent().catch(handleError));
 }
@@ -54,6 +60,7 @@ folderPathInput.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('keydown', onKeyDown);
+window.addEventListener('beforeunload', persistUiState);
 viewer.addEventListener('wheel', onViewerWheel, { passive: false });
 viewer.addEventListener('click', onViewerClick);
 
@@ -83,11 +90,119 @@ grid.addEventListener('click', (event) => {
   openSelected();
 });
 
+function persistUiState() {
+  const selectedEntry = currentEntry();
+  const selectedImagePath = state.fullScreen
+    ? state.images[state.currentImageIndex]?.path || null
+    : (selectedEntry && selectedEntry.type === 'image' ? selectedEntry.path : null);
+
+  const payload = {
+    currentPath: state.currentPath || folderPathInput.value.trim() || DEFAULT_START_PATH,
+    selectedPath: selectedEntry?.path || null,
+    selectedImagePath,
+    fullScreen: Boolean(state.fullScreen && selectedImagePath)
+  };
+
+  localStorage.setItem(RESTORE_STORAGE_KEY, JSON.stringify(payload));
+  syncUrlWithUiState(payload);
+}
+
+function readPersistedUiState() {
+  try {
+    const raw = localStorage.getItem(RESTORE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function readUiStateFromUrl() {
+  const url = new URL(window.location.href);
+  const currentPath = url.searchParams.get('path');
+  const selectedPath = url.searchParams.get('selected');
+  const selectedImagePath = url.searchParams.get('image');
+  const fullScreen = url.searchParams.get('fullscreen') === '1';
+
+  if (!currentPath) {
+    return null;
+  }
+
+  return {
+    currentPath,
+    selectedPath,
+    selectedImagePath,
+    fullScreen
+  };
+}
+
+function syncUrlWithUiState(payload) {
+  const url = new URL(window.location.href);
+
+  if (payload.currentPath) {
+    url.searchParams.set('path', payload.currentPath);
+  } else {
+    url.searchParams.delete('path');
+  }
+
+  if (payload.selectedPath) {
+    url.searchParams.set('selected', payload.selectedPath);
+  } else {
+    url.searchParams.delete('selected');
+  }
+
+  if (payload.selectedImagePath) {
+    url.searchParams.set('image', payload.selectedImagePath);
+  } else {
+    url.searchParams.delete('image');
+  }
+
+  if (payload.fullScreen) {
+    url.searchParams.set('fullscreen', '1');
+  } else {
+    url.searchParams.delete('fullscreen');
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    window.history.replaceState(null, '', nextUrl);
+  }
+}
+
 async function init() {
   const cfg = await api('/api/config');
   state.keepDir = cfg.keepDir || '';
   keepDirInput.value = state.keepDir;
-  await loadFolder(DEFAULT_START_PATH);
+
+  const persisted = readUiStateFromUrl() || readPersistedUiState();
+  const startupPath = persisted?.currentPath || DEFAULT_START_PATH;
+  const preferredPath = persisted?.selectedPath || persisted?.selectedImagePath || null;
+
+  try {
+    await loadFolder(startupPath, preferredPath);
+  } catch (error) {
+    if (startupPath !== DEFAULT_START_PATH) {
+      await loadFolder(DEFAULT_START_PATH);
+      showToast('Dossier restauré indisponible, retour au dossier par défaut');
+    } else {
+      throw error;
+    }
+  }
+
+  if (persisted?.fullScreen && persisted?.selectedImagePath) {
+    const restoredImageIndex = state.images.findIndex((img) => img.path === persisted.selectedImagePath);
+    if (restoredImageIndex >= 0) {
+      state.currentImageIndex = restoredImageIndex;
+      state.fullScreen = true;
+      showCurrentImage();
+      viewer.classList.remove('hidden');
+      updateKeepActionsVisibility();
+    }
+  }
+
+  persistUiState();
 }
 
 async function openFolderFromInput() {
@@ -112,6 +227,7 @@ async function loadFolder(path, preferredSelectedPath = null) {
     state.selectedIndex = 0;
   }
   render();
+  persistUiState();
 }
 
 function focusGridNavigation() {
@@ -162,6 +278,7 @@ function select(index) {
   [...grid.children].forEach((el, i) => el.classList.toggle('selected', i === clamped));
   ensureSelectedVisible();
   focusGridNavigation();
+  persistUiState();
 }
 
 function ensureSelectedVisible() {
@@ -193,6 +310,7 @@ function openFullscreenFromSelected() {
   showCurrentImage();
   viewer.classList.remove('hidden');
   updateKeepActionsVisibility();
+  persistUiState();
 }
 
 function setStretchMode(enabled) {
@@ -209,12 +327,14 @@ function showCurrentImage() {
     viewer.classList.add('hidden');
     state.fullScreen = false;
     if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
+    persistUiState();
     return;
   }
   state.currentImageIndex = Math.max(0, Math.min(state.images.length - 1, state.currentImageIndex));
   const img = state.images[state.currentImageIndex];
   viewerImage.src = `/api/image?path=${encodeURIComponent(img.path)}`;
   if (viewerToolbar) viewerToolbar.textContent = `${VIEWER_TOOLBAR_BASE_TEXT}\n${img.path}`;
+  persistUiState();
 }
 
 function closeViewer() {
@@ -222,6 +342,7 @@ function closeViewer() {
   viewer.classList.add('hidden');
   updateKeepActionsVisibility();
   if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
+  persistUiState();
 }
 
 function updateKeepActionsVisibility() {
@@ -439,9 +560,37 @@ function blobToBase64(blob) {
   });
 }
 
+
+async function copySelectedImageToClipboard() {
+  if (state.fullScreen) {
+    showToast('Action disponible en mode mosaïque uniquement');
+    return;
+  }
+
+  const entry = currentEntry();
+  if (!entry || entry.type !== 'image') {
+    showToast('Sélectionnez une image dans la mosaïque');
+    return;
+  }
+
+  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+    throw new Error('Clipboard API image indisponible');
+  }
+
+  const response = await fetch(`/api/image?path=${encodeURIComponent(entry.path)}`);
+  if (!response.ok) {
+    throw new Error(`Impossible de charger l'image (HTTP ${response.status})`);
+  }
+
+  const imageBlob = await response.blob();
+  const mimeType = imageBlob.type || 'image/png';
+  await navigator.clipboard.write([new ClipboardItem({ [mimeType]: imageBlob })]);
+  showToast(`Image copiée dans le presse-papiers : ${entry.name}`);
+}
+
 function onViewerClick(event) {
   if (!state.fullScreen) return;
-  if (event.target instanceof Element && event.target.closest('#viewerImage')) {
+  if (event.target !== viewer) {
     return;
   }
   closeViewer();
@@ -514,6 +663,11 @@ function onKeyDown(e) {
     if (e.key === 'a' || e.key === 'A') {
       e.preventDefault();
       importImagesFromClipboardHtml().catch(handleError);
+      return;
+    }
+    if (e.key === 'u' || e.key === 'U') {
+      e.preventDefault();
+      copySelectedImageToClipboard().catch(handleError);
       return;
     }
   }
