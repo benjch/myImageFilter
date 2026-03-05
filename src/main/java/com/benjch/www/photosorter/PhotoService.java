@@ -142,6 +142,10 @@ public class PhotoService {
         thumbnailCache.invalidateByPrefix(path.toString());
     }
 
+    public void clearThumbnailCache() {
+        thumbnailCache.invalidateAll();
+    }
+
     public KeepResult keepImage(String rawPath, String keepDir, String keepLabelSuffix) throws IOException {
         Path source = resolveSafePath(rawPath);
         if (!isImage(source)) {

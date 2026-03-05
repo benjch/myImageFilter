@@ -27,4 +27,8 @@ public class ThumbnailCache {
     public synchronized void invalidateByPrefix(String prefix) {
         cache.keySet().removeIf(k -> k.startsWith(prefix));
     }
+
+    public synchronized void invalidateAll() {
+        cache.clear();
+    }
 }
