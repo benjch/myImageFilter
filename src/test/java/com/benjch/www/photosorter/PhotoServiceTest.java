@@ -115,4 +115,32 @@ class PhotoServiceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.importImageFromClipboard(folder.toString(), "not-base64", "image/png"));
     }
+
+    @Test
+    void listFolderEntriesShouldExposeImageCountPerFolder() throws Exception {
+        PhotoService service = new PhotoService(new ThumbnailCache());
+        Path root = tempDir.resolve("root");
+        Path withImages = root.resolve("withImages");
+        Path withoutImages = root.resolve("withoutImages");
+        Files.createDirectories(withImages);
+        Files.createDirectories(withoutImages);
+
+        Files.write(withImages.resolve("01.jpg"), java.util.Base64.getDecoder().decode(PNG_1X1_BASE64));
+        Files.write(withImages.resolve("02.png"), java.util.Base64.getDecoder().decode(PNG_1X1_BASE64));
+        Files.writeString(withImages.resolve("note.txt"), "not an image");
+
+        PhotoService.FolderEntries entries = service.listFolderEntries(root.toString());
+
+        PhotoService.FolderEntry withImagesEntry = entries.folders().stream()
+                .filter(folder -> folder.name().equals("withImages"))
+                .findFirst()
+                .orElseThrow();
+        PhotoService.FolderEntry withoutImagesEntry = entries.folders().stream()
+                .filter(folder -> folder.name().equals("withoutImages"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(2, withImagesEntry.imageCount());
+        assertEquals(0, withoutImagesEntry.imageCount());
+    }
 }

@@ -265,7 +265,8 @@ function render() {
         <div class="tile-name">${entry.name}</div>
       `;
     } else {
-      tile.innerHTML = `<div class="folder-icon">📁</div><div class="tile-name">${entry.name}</div>`;
+      const imageCountLabel = Number.isFinite(entry.imageCount) ? entry.imageCount : 0;
+      tile.innerHTML = `<div class="folder-icon">📁</div><div class="tile-name">${entry.name} (${imageCountLabel})</div>`;
     }
 
     fragment.appendChild(tile);
