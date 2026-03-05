@@ -51,7 +51,7 @@ public class PhotoService {
         if (rawPath == null || rawPath.isBlank()) {
             List<FolderEntry> roots = new ArrayList<>();
             for (Path root : FileSystems.getDefault().getRootDirectories()) {
-                roots.add(new FolderEntry(root.toString(), root.toString(), Instant.EPOCH.toEpochMilli()));
+                roots.add(new FolderEntry(root.toString(), root.toString(), Instant.EPOCH.toEpochMilli(), 0));
             }
             roots.sort(Comparator.comparing(FolderEntry::name, String.CASE_INSENSITIVE_ORDER));
             return new FolderEntries("", List.of(), roots);
@@ -69,7 +69,11 @@ public class PhotoService {
             stream.forEach(path -> {
                 try {
                     if (Files.isDirectory(path)) {
-                        folders.add(new FolderEntry(path.toString(), path.getFileName().toString(), Files.getLastModifiedTime(path).toMillis()));
+                        folders.add(new FolderEntry(
+                                path.toString(),
+                                path.getFileName().toString(),
+                                Files.getLastModifiedTime(path).toMillis(),
+                                countImagesInFolder(path)));
                     } else if (isImage(path)) {
                         ImageSize imageSize = readImageSize(path);
                         images.add(new ImageEntry(path.toString(), path.getFileName().toString(), Files.getLastModifiedTime(path).toMillis(), imageSize.width(), imageSize.height(), extensionOf(path.getFileName().toString()).replace(".", "")));
@@ -466,13 +470,21 @@ public class PhotoService {
         return path;
     }
 
+    private static int countImagesInFolder(Path folderPath) {
+        try (Stream<Path> files = Files.list(folderPath)) {
+            return (int) files.filter(Files::isRegularFile).filter(PhotoService::isImage).count();
+        } catch (IOException exception) {
+            return 0;
+        }
+    }
+
     public record FolderEntries(String currentPath, List<ImageEntry> images, List<FolderEntry> folders) {
     }
 
     public record ImageEntry(String path, String name, long modifiedAt, int width, int height, String extension) {
     }
 
-    public record FolderEntry(String path, String name, long modifiedAt) {
+    public record FolderEntry(String path, String name, long modifiedAt, int imageCount) {
     }
 
     public record KeepResult(String path, String filename) {
