@@ -172,6 +172,11 @@ button {
   background: #fff;
 }
 
+.tile.folder.empty-folder {
+  background: #fde8f3;
+  border-color: #f2b7d7;
+}
+
 .folder-icon { font-size: 24px; }
 
 .viewer {
