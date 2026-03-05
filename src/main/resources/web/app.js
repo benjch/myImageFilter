@@ -13,7 +13,8 @@ const state = {
   fullScreen: false,
   currentImageIndex: 0,
   keepDir: '',
-  stretchMode: false
+  stretchMode: false,
+  thumbnailBust: 0
 };
 
 const grid = document.getElementById('grid');
@@ -258,7 +259,7 @@ function render() {
       const extension = (entry.extension || '').toUpperCase();
       tile.innerHTML = `
         <div class="thumb-frame">
-          <img loading="lazy" decoding="async" src="/api/thumbnail?path=${encodeURIComponent(entry.path)}&size=360" alt="${entry.name}" />
+          <img loading="lazy" decoding="async" src="/api/thumbnail?path=${encodeURIComponent(entry.path)}&size=360&t=${state.thumbnailBust}" alt="${entry.name}" />
         </div>
         <div class="tile-meta">${width}x${height}${extension ? `    ${extension}` : ''}</div>
         <div class="tile-name">${entry.name}</div>
@@ -411,7 +412,7 @@ async function keepCurrent(variant = 'normal') {
 }
 
 async function goParent() {
-  const sourcePath = state.currentPath || folderPathInput.value.trim();
+  const sourcePath = folderPathInput.value.trim() || state.currentPath;
   if (!sourcePath) {
     showToast('Aucun dossier courant');
     return;
@@ -484,8 +485,10 @@ async function refreshCurrentFolder() {
   const preferredPath = state.fullScreen
     ? state.images[state.currentImageIndex]?.path ?? null
     : currentEntry()?.path ?? null;
+  await api('/api/thumbnail-cache/clear', 'POST');
+  state.thumbnailBust = Date.now();
   await loadFolder(state.currentPath, preferredPath);
-  showToast('Mosaïque rafraîchie');
+  showToast('Mosaïque rafraîchie (sans cache)');
 }
 
 async function saveKeepDir() {
@@ -574,27 +577,20 @@ function extractFolderName(path) {
   return segments.length ? segments[segments.length - 1] : '';
 }
 
-function formatGameNameForClipboard(folderName) {
-  if (!folderName) return '';
-
-  const withTitleOnly = folderName.replace(/^\d{4}_\d{2}_\d{2}_[^_]+_/, '');
-  return withTitleOnly.replace(/_/g, ' ').trim();
-}
 
 async function copySelectedImageNameToClipboard() {
   if (!navigator.clipboard?.writeText) {
     throw new Error('Clipboard API texte indisponible');
   }
 
-  const sourcePath = state.currentPath || folderPathInput.value.trim();
+  const sourcePath = folderPathInput.value.trim() || state.currentPath;
   const folderName = extractFolderName(sourcePath);
-  const gameName = formatGameNameForClipboard(folderName);
-  if (!gameName) {
+  if (!folderName) {
     throw new Error('Nom de dossier invalide');
   }
 
-  await navigator.clipboard.writeText(gameName);
-  showToast(`Nom copié dans le presse-papiers : ${gameName}`);
+  await navigator.clipboard.writeText(folderName);
+  showToast(`Nom copié dans le presse-papiers : ${folderName}`);
 }
 
 async function copySelectedImageToClipboard() {
@@ -651,15 +647,19 @@ function isBackNavigationKey(e) {
   return e.key === 'Backspace' || e.key === 'BrowserBack' || (e.altKey && e.key === 'ArrowLeft');
 }
 
-function shouldIgnoreGlobalShortcut(event) {
-  if (event.altKey || event.ctrlKey || event.metaKey) {
-    return true;
-  }
+function isEditableElementActive() {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement)) {
     return false;
   }
   return active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable;
+}
+
+function shouldIgnoreGlobalShortcut(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return true;
+  }
+  return isEditableElementActive();
 }
 
 function onKeyDown(e) {
@@ -684,10 +684,19 @@ function onKeyDown(e) {
     return;
   }
 
-  if (!state.fullScreen && e.key === 'F5') {
-    e.preventDefault();
-    refreshCurrentFolder().catch(handleError);
-    return;
+
+  if (!state.fullScreen && !isEditableElementActive() && e.ctrlKey && !e.altKey && !e.metaKey) {
+    const key = e.key.toLowerCase();
+    if (key === 'c') {
+      e.preventDefault();
+      copySelectedImageToClipboard().catch(handleError);
+      return;
+    }
+    if (key === 'v') {
+      e.preventDefault();
+      importSingleImageFromClipboard().catch(handleError);
+      return;
+    }
   }
 
   if (!state.fullScreen && !shouldIgnoreGlobalShortcut(e)) {

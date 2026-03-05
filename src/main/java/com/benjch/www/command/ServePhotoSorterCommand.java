@@ -128,6 +128,12 @@ public class ServePhotoSorterCommand implements Command {
                 sendJson(exchange, 200, Map.of("status", "ok", "path", result.path(), "filename", result.filename()));
             }));
 
+            server.createContext("/api/thumbnail-cache/clear", wrap(exchange -> {
+                requireMethod(exchange, "POST");
+                photoService.clearThumbnailCache();
+                sendJson(exchange, 200, Map.of("status", "ok"));
+            }));
+
             server.createContext("/", exchange -> {
                 try {
                     String path = exchange.getRequestURI().getPath();
