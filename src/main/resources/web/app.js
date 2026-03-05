@@ -266,6 +266,10 @@ function render() {
       `;
     } else {
       const imageCountLabel = Number.isFinite(entry.imageCount) ? entry.imageCount : 0;
+      const isEmptyFolder = imageCountLabel === 0 || /\(\s*0\s*\)/.test(entry.name || '');
+      if (isEmptyFolder) {
+        tile.classList.add('empty-folder');
+      }
       tile.innerHTML = `<div class="folder-icon">📁</div><div class="tile-name">${entry.name} (${imageCountLabel})</div>`;
     }
 
