@@ -24,6 +24,7 @@ const loadImagesBtn = document.getElementById('loadImagesBtn');
 const loadImageBtn = document.getElementById('loadImageBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const uploadBtn = document.getElementById('uploadBtn');
+const getNameBtn = document.getElementById('getNameBtn');
 const imageCount = document.getElementById('imageCount');
 const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
@@ -49,6 +50,9 @@ if (refreshBtn) {
 }
 if (uploadBtn) {
   uploadBtn.addEventListener('click', () => copySelectedImageToClipboard().catch(handleError));
+}
+if (getNameBtn) {
+  getNameBtn.addEventListener('click', () => copySelectedImageNameToClipboard().catch(handleError));
 }
 if (goParentBtn) {
   goParentBtn.addEventListener('click', () => goParent().catch(handleError));
@@ -561,6 +565,38 @@ function blobToBase64(blob) {
 }
 
 
+function extractFolderName(path) {
+  if (!path) return '';
+  const trimmed = path.trim().replace(/[\\/]+$/, '');
+  if (!trimmed) return '';
+  const normalized = trimmed.replace(/\\/g, '/');
+  const segments = normalized.split('/').filter(Boolean);
+  return segments.length ? segments[segments.length - 1] : '';
+}
+
+function formatGameNameForClipboard(folderName) {
+  if (!folderName) return '';
+
+  const withTitleOnly = folderName.replace(/^\d{4}_\d{2}_\d{2}_[^_]+_/, '');
+  return withTitleOnly.replace(/_/g, ' ').trim();
+}
+
+async function copySelectedImageNameToClipboard() {
+  if (!navigator.clipboard?.writeText) {
+    throw new Error('Clipboard API texte indisponible');
+  }
+
+  const sourcePath = state.currentPath || folderPathInput.value.trim();
+  const folderName = extractFolderName(sourcePath);
+  const gameName = formatGameNameForClipboard(folderName);
+  if (!gameName) {
+    throw new Error('Nom de dossier invalide');
+  }
+
+  await navigator.clipboard.writeText(gameName);
+  showToast(`Nom copié dans le presse-papiers : ${gameName}`);
+}
+
 async function copySelectedImageToClipboard() {
   if (state.fullScreen) {
     showToast('Action disponible en mode mosaïque uniquement');
@@ -668,6 +704,11 @@ function onKeyDown(e) {
     if (e.key === 'u' || e.key === 'U') {
       e.preventDefault();
       copySelectedImageToClipboard().catch(handleError);
+      return;
+    }
+    if (e.key === 'n' || e.key === 'N') {
+      e.preventDefault();
+      copySelectedImageNameToClipboard().catch(handleError);
       return;
     }
   }
