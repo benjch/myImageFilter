@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -142,5 +143,19 @@ class PhotoServiceTest {
 
         assertEquals(2, withImagesEntry.imageCount());
         assertEquals(0, withoutImagesEntry.imageCount());
+    }
+
+    @Test
+    void extractGoogleSourcePageUrlsShouldReturnDecodedImgrefurlValues() {
+        PhotoService service = new PhotoService(new ThumbnailCache());
+        String html = """
+                <a href=\"/imgres?imgurl=https%3A%2F%2Fcdn.site.com%2Fcover.jpg&imgrefurl=https%3A%2F%2Fsite.com%2Fgame1&h=400\">A</a>
+                <a href=\"https://www.google.com/imgres?imgurl=https%3A%2F%2Fcdn.site.com%2Fcover2.jpg&imgrefurl=https%3A%2F%2Fsite.com%2Fgame2\">B</a>
+                <a href=\"/imgres?imgrefurl=https%3A%2F%2Fsite.com%2Fgame1&imgurl=https%3A%2F%2Fcdn.site.com%2Fcover.jpg\">C</a>
+                """;
+
+        List<String> urls = service.extractGoogleSourcePageUrls(html);
+
+        assertEquals(List.of("https://site.com/game1", "https://site.com/game2"), urls);
     }
 }

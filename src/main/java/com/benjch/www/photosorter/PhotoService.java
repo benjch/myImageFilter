@@ -40,7 +40,10 @@ public class PhotoService {
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
     private static final Pattern IMG_SRC_PATTERN = Pattern.compile("<img\\b[^>]*\\bsrc\\s*=\\s*(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern GOOGLE_IMAGE_URL_PATTERN = Pattern.compile("https?://[^\"\'\s<>]+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern GOOGLE_RESULT_LINK_PATTERN = Pattern.compile("(?:/imgres\\?|https?://www\\.google\\.[^/]+/imgres\\?)[^\"\'\\s<>]+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern META_CONTENT_PATTERN = Pattern.compile("<meta\\b[^>]*\\b(?:property|name)\\s*=\\s*(['\"])(?:og:image|twitter:image)\\1[^>]*\\bcontent\\s*=\\s*(['\"])(.*?)\\2", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
+    private static final String BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
     private final ThumbnailCache thumbnailCache;
 
@@ -209,10 +212,10 @@ public class PhotoService {
         }
 
         int safeMax = Math.max(1, Math.min(maxImages <= 0 ? 20 : maxImages, 100));
-        String url = "https://www.google.com/search?tbm=isch&q=" + java.net.URLEncoder.encode(query, StandardCharsets.UTF_8);
+        String url = "https://www.google.com/search?udm=2&q=" + java.net.URLEncoder.encode(query, StandardCharsets.UTF_8);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .header("User-Agent", "Mozilla/5.0")
+                .header("User-Agent", BROWSER_USER_AGENT)
                 .header("Accept", "text/html")
                 .GET()
                 .build();
@@ -230,30 +233,147 @@ public class PhotoService {
         String html = response.body() == null ? "" : response.body();
         List<String> files = new ArrayList<>();
         Set<String> seenUrls = new HashSet<>();
-        Matcher matcher = GOOGLE_IMAGE_URL_PATTERN.matcher(html);
-        while (matcher.find() && files.size() < safeMax) {
-            String candidate = matcher.group();
-            if (candidate == null || candidate.isBlank()) {
-                continue;
+        List<String> sourcePageUrls = extractGoogleSourcePageUrls(html);
+        for (String sourcePageUrl : sourcePageUrls) {
+            if (files.size() >= safeMax) {
+                break;
             }
-            if (!looksLikeImageUrl(candidate)) {
-                continue;
+            List<String> candidates = extractImageUrlsFromWebPage(sourcePageUrl);
+            for (String candidate : candidates) {
+                if (files.size() >= safeMax) {
+                    break;
+                }
+                if (!looksLikeImageUrl(candidate) || !seenUrls.add(candidate)) {
+                    continue;
+                }
+                try {
+                    ImportedImage imported = loadImageFromSrc(candidate);
+                    Path target = findAvailableName(folder, imported.baseName(), "." + imported.extension());
+                    Files.write(target, imported.bytes());
+                    files.add(target.getFileName().toString());
+                } catch (Exception ignored) {
+                    // continue on invalid or blocked source
+                }
             }
-            if (!seenUrls.add(candidate)) {
-                continue;
-            }
+        }
 
-            try {
-                ImportedImage imported = loadImageFromSrc(candidate);
-                Path target = findAvailableName(folder, imported.baseName(), "." + imported.extension());
-                Files.write(target, imported.bytes());
-                files.add(target.getFileName().toString());
-            } catch (Exception ignored) {
-                // continue on invalid or blocked source
+        if (files.isEmpty()) {
+            Matcher matcher = GOOGLE_IMAGE_URL_PATTERN.matcher(html);
+            while (matcher.find() && files.size() < safeMax) {
+                String candidate = matcher.group();
+                if (candidate == null || candidate.isBlank()) {
+                    continue;
+                }
+                if (!looksLikeImageUrl(candidate)) {
+                    continue;
+                }
+                if (!seenUrls.add(candidate)) {
+                    continue;
+                }
+
+                try {
+                    ImportedImage imported = loadImageFromSrc(candidate);
+                    Path target = findAvailableName(folder, imported.baseName(), "." + imported.extension());
+                    Files.write(target, imported.bytes());
+                    files.add(target.getFileName().toString());
+                } catch (Exception ignored) {
+                    // continue on invalid or blocked source
+                }
             }
         }
 
         return new HtmlImportResult(files.size(), files);
+    }
+
+    List<String> extractGoogleSourcePageUrls(String html) {
+        Set<String> urls = new java.util.LinkedHashSet<>();
+        Matcher matcher = GOOGLE_RESULT_LINK_PATTERN.matcher(html == null ? "" : html);
+        while (matcher.find()) {
+            String href = matcher.group();
+            if (href == null || href.isBlank()) {
+                continue;
+            }
+            String absolute = href.startsWith("/") ? "https://www.google.com" + href : href;
+            parseQueryParameter(absolute, "imgrefurl").ifPresent(urls::add);
+        }
+        return new ArrayList<>(urls);
+    }
+
+    List<String> extractImageUrlsFromWebPage(String pageUrl) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(pageUrl))
+                    .header("User-Agent", BROWSER_USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml")
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return List.of();
+            }
+
+            String html = response.body() == null ? "" : response.body();
+            Set<String> result = new java.util.LinkedHashSet<>();
+
+            Matcher metaMatcher = META_CONTENT_PATTERN.matcher(html);
+            while (metaMatcher.find()) {
+                String src = metaMatcher.group(3);
+                resolveAbsoluteUrl(pageUrl, src).ifPresent(result::add);
+            }
+
+            Matcher imgMatcher = IMG_SRC_PATTERN.matcher(html);
+            while (imgMatcher.find() && result.size() < 20) {
+                String src = imgMatcher.group(2);
+                resolveAbsoluteUrl(pageUrl, src).ifPresent(result::add);
+            }
+
+            return new ArrayList<>(result);
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private Optional<String> resolveAbsoluteUrl(String pageUrl, String src) {
+        if (src == null || src.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            URI base = URI.create(pageUrl);
+            URI resolved = base.resolve(src.trim());
+            if (!"http".equalsIgnoreCase(resolved.getScheme()) && !"https".equalsIgnoreCase(resolved.getScheme())) {
+                return Optional.empty();
+            }
+            return Optional.of(resolved.toString());
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<String> parseQueryParameter(String url, String key) {
+        try {
+            URI uri = URI.create(url);
+            String query = uri.getRawQuery();
+            if (query == null || query.isBlank()) {
+                return Optional.empty();
+            }
+            for (String pair : query.split("&")) {
+                int idx = pair.indexOf('=');
+                if (idx <= 0) {
+                    continue;
+                }
+                String param = URLDecoder.decode(pair.substring(0, idx), StandardCharsets.UTF_8);
+                if (!key.equals(param)) {
+                    continue;
+                }
+                String value = URLDecoder.decode(pair.substring(idx + 1), StandardCharsets.UTF_8);
+                if (value.isBlank()) {
+                    return Optional.empty();
+                }
+                return Optional.of(value);
+            }
+            return Optional.empty();
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
     }
 
     private boolean looksLikeImageUrl(String candidate) {
@@ -334,7 +454,10 @@ public class PhotoService {
         if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
             throw new IllegalArgumentException("Unsupported src scheme");
         }
-        HttpRequest request = HttpRequest.newBuilder(uri).GET().build();
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .header("User-Agent", BROWSER_USER_AGENT)
+                .GET()
+                .build();
         HttpResponse<byte[]> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IllegalArgumentException("Download failed: HTTP " + response.statusCode());
