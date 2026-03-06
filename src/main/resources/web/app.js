@@ -14,7 +14,8 @@ const state = {
   currentImageIndex: 0,
   keepDir: '',
   stretchMode: false,
-  thumbnailBust: 0
+  thumbnailBust: 0,
+  scrapInProgress: false
 };
 
 const grid = document.getElementById('grid');
@@ -640,6 +641,11 @@ function openGoogleImagesSearch() {
 }
 
 async function scrapGoogleQueryToCurrentFolder() {
+  if (state.scrapInProgress) {
+    showToast('Scrap déjà en cours');
+    return;
+  }
+
   const defaultQuery = buildGoogleCoverQuery();
   const query = (googleSearchInput?.value || '').trim() || defaultQuery;
   if (!query) {
@@ -656,14 +662,48 @@ async function scrapGoogleQueryToCurrentFolder() {
     googleSearchInput.value = query;
   }
 
-  const result = await api('/api/scrap-google-images', 'POST', {
-    folderPath: state.currentPath,
-    query,
-    maxImages: 20
-  });
+  state.scrapInProgress = true;
+  const stopScrapStatus = startScrapStatusNotification();
+  if (scrapAllGoogleBtn) {
+    scrapAllGoogleBtn.disabled = true;
+  }
 
-  showToast(`Scrap terminé: ${result.importedCount || 0} image(s) importée(s)`);
-  await refreshCurrentFolder();
+  try {
+    const result = await api('/api/scrap-google-images', 'POST', {
+      folderPath: state.currentPath,
+      query,
+      maxImages: 20
+    });
+
+    stopScrapStatus(result.importedCount || 0);
+    showToast(`Scrap terminé: ${result.importedCount || 0} image(s) importée(s)`);
+    await refreshCurrentFolder();
+  } finally {
+    if (scrapAllGoogleBtn) {
+      scrapAllGoogleBtn.disabled = false;
+    }
+    state.scrapInProgress = false;
+  }
+}
+
+function startScrapStatusNotification() {
+  const startedAt = Date.now();
+  let importedCount = 0;
+
+  const renderStatus = () => {
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+    showToast(`Scrapping en cours... ${importedCount} image(s) récupérée(s) • ${elapsedSeconds}s`, { persistent: true });
+  };
+
+  renderStatus();
+  const timer = setInterval(renderStatus, 1000);
+
+  return (finalImportedCount = importedCount) => {
+    importedCount = finalImportedCount;
+    clearInterval(timer);
+    clearTimeout(showToast.timer);
+    toast.classList.add('hidden');
+  };
 }
 
 function extractFolderName(path) {
@@ -884,6 +924,12 @@ function shouldIgnoreGlobalShortcut(event) {
 }
 
 function onKeyDown(e) {
+  if (!isEditableElementActive() && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'F5') {
+    e.preventDefault();
+    refreshCurrentFolder().catch(handleError);
+    return;
+  }
+
   if (state.fullScreen && (isBackNavigationKey(e) || e.key === 'Escape')) {
     e.preventDefault();
     e.stopPropagation();
@@ -976,8 +1022,10 @@ function onKeyDown(e) {
   }
 
   if (e.key === 'ArrowLeft') {
+    e.preventDefault();
     select(state.selectedIndex - 1);
   } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
     select(state.selectedIndex + 1);
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
@@ -1009,11 +1057,14 @@ function gridColumnCount() {
   return firstRowCount === -1 ? tiles.length : firstRowCount;
 }
 
-function showToast(text) {
+function showToast(text, options = {}) {
+  const { persistent = false, duration = 1800 } = options;
   toast.textContent = text;
   toast.classList.remove('hidden');
   clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.add('hidden'), 1800);
+  if (!persistent) {
+    showToast.timer = setTimeout(() => toast.classList.add('hidden'), duration);
+  }
 }
 
 function handleError(error) {

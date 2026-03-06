@@ -110,6 +110,13 @@ button {
   min-width: 280px;
 }
 
+#scrapAllGoogleBtn:disabled {
+  background: #fde8f3;
+  border-color: #f2b7d7;
+  color: #7a2e58;
+  cursor: not-allowed;
+}
+
 .count {
   color: var(--muted);
   font-size: 13px;
