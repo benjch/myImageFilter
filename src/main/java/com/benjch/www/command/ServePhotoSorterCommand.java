@@ -121,6 +121,16 @@ public class ServePhotoSorterCommand implements Command {
                 sendJson(exchange, 200, Map.of("status", "ok", "importedCount", result.importedCount(), "files", result.files()));
             }));
 
+            server.createContext("/api/scrap-google-images", wrap(exchange -> {
+                requireMethod(exchange, "POST");
+                Map<String, Object> body = bodyAsObjectMap(exchange);
+                String folderPath = String.valueOf(body.getOrDefault("folderPath", ""));
+                String queryValue = String.valueOf(body.getOrDefault("query", ""));
+                int maxImages = parseIntegerBodyValue(body.get("maxImages"), 20);
+                HtmlImportResult result = photoService.scrapeGoogleImages(folderPath, queryValue, maxImages);
+                sendJson(exchange, 200, Map.of("status", "ok", "importedCount", result.importedCount(), "files", result.files()));
+            }));
+
             server.createContext("/api/import-image-from-clipboard", wrap(exchange -> {
                 requireMethod(exchange, "POST");
                 Map<String, String> body = bodyAsMap(exchange);
@@ -207,6 +217,35 @@ public class ServePhotoSorterCommand implements Command {
                 return Map.of();
             }
             return objectMapper.readValue(bytes, Map.class);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> bodyAsObjectMap(HttpExchange exchange) throws IOException {
+        try (InputStream body = exchange.getRequestBody()) {
+            byte[] bytes = body.readAllBytes();
+            if (bytes.length == 0) {
+                return Map.of();
+            }
+            return objectMapper.readValue(bytes, Map.class);
+        }
+    }
+
+    private int parseIntegerBodyValue(Object value, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        String asString = value.toString();
+        if (asString.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(asString);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid integer value: " + asString);
         }
     }
 

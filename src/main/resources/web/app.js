@@ -37,12 +37,16 @@ const keepDirInput = document.getElementById('keepDirInput');
 const keepActions = document.getElementById('keepActions');
 const googleSearchInput = document.getElementById('googleSearchInput');
 const scrapGoogleBtn = document.getElementById('scrapGoogleBtn');
+const scrapAllGoogleBtn = document.getElementById('scrapAllGoogleBtn');
 
 folderPathInput.value = DEFAULT_START_PATH;
 
 document.getElementById('saveKeepBtn').addEventListener('click', saveKeepDir);
 if (scrapGoogleBtn) {
   scrapGoogleBtn.addEventListener('click', openGoogleImagesSearch);
+}
+if (scrapAllGoogleBtn) {
+  scrapAllGoogleBtn.addEventListener('click', () => scrapGoogleQueryToCurrentFolder().catch(handleError));
 }
 if (googleSearchInput) {
   googleSearchInput.addEventListener('keydown', (event) => {
@@ -631,6 +635,33 @@ function openGoogleImagesSearch() {
 
   const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+async function scrapGoogleQueryToCurrentFolder() {
+  const defaultQuery = buildGoogleCoverQuery();
+  const query = (googleSearchInput?.value || '').trim() || defaultQuery;
+  if (!query) {
+    showToast('Recherche Google vide');
+    return;
+  }
+
+  if (!state.currentPath) {
+    showToast('Dossier courant introuvable');
+    return;
+  }
+
+  if (googleSearchInput && !googleSearchInput.value.trim()) {
+    googleSearchInput.value = query;
+  }
+
+  const result = await api('/api/scrap-google-images', 'POST', {
+    folderPath: state.currentPath,
+    query,
+    maxImages: 20
+  });
+
+  showToast(`Scrap terminé: ${result.importedCount || 0} image(s) importée(s)`);
+  await refreshCurrentFolder();
 }
 
 function extractFolderName(path) {

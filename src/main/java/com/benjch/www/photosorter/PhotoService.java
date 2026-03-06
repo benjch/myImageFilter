@@ -39,6 +39,7 @@ public class PhotoService {
 
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
     private static final Pattern IMG_SRC_PATTERN = Pattern.compile("<img\\b[^>]*\\bsrc\\s*=\\s*(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern GOOGLE_IMAGE_URL_PATTERN = Pattern.compile("https?://[^\"\'\s<>]+", Pattern.CASE_INSENSITIVE);
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
 
     private final ThumbnailCache thumbnailCache;
@@ -195,6 +196,72 @@ public class PhotoService {
         }
 
         return new HtmlImportResult(files.size(), files);
+    }
+
+
+    public HtmlImportResult scrapeGoogleImages(String folderPath, String query, int maxImages) throws IOException {
+        Path folder = resolveSafePath(folderPath);
+        if (!Files.isDirectory(folder)) {
+            throw new IllegalArgumentException("Not a directory: " + folderPath);
+        }
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("Google query is required");
+        }
+
+        int safeMax = Math.max(1, Math.min(maxImages <= 0 ? 20 : maxImages, 100));
+        String url = "https://www.google.com/search?tbm=isch&q=" + java.net.URLEncoder.encode(query, StandardCharsets.UTF_8);
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .header("User-Agent", "Mozilla/5.0")
+                .header("Accept", "text/html")
+                .GET()
+                .build();
+        HttpResponse<String> response;
+        try {
+            response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Google request interrupted", e);
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalArgumentException("Google search failed: HTTP " + response.statusCode());
+        }
+
+        String html = response.body() == null ? "" : response.body();
+        List<String> files = new ArrayList<>();
+        Set<String> seenUrls = new HashSet<>();
+        Matcher matcher = GOOGLE_IMAGE_URL_PATTERN.matcher(html);
+        while (matcher.find() && files.size() < safeMax) {
+            String candidate = matcher.group();
+            if (candidate == null || candidate.isBlank()) {
+                continue;
+            }
+            if (!looksLikeImageUrl(candidate)) {
+                continue;
+            }
+            if (!seenUrls.add(candidate)) {
+                continue;
+            }
+
+            try {
+                ImportedImage imported = loadImageFromSrc(candidate);
+                Path target = findAvailableName(folder, imported.baseName(), "." + imported.extension());
+                Files.write(target, imported.bytes());
+                files.add(target.getFileName().toString());
+            } catch (Exception ignored) {
+                // continue on invalid or blocked source
+            }
+        }
+
+        return new HtmlImportResult(files.size(), files);
+    }
+
+    private boolean looksLikeImageUrl(String candidate) {
+        if (candidate.contains("gstatic.com/images") || candidate.contains("googleusercontent.com")) {
+            return true;
+        }
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        return lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") || lower.contains(".webp") || lower.contains(".gif");
     }
 
     public ImportedSingleImage importImageFromClipboard(String folderPath, String imageBase64, String mimeType) throws IOException {
