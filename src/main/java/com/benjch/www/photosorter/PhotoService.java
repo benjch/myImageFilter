@@ -81,7 +81,15 @@ public class PhotoService {
                                 countImagesInFolder(path)));
                     } else if (isImage(path)) {
                         ImageSize imageSize = readImageSize(path);
-                        images.add(new ImageEntry(path.toString(), path.getFileName().toString(), Files.getLastModifiedTime(path).toMillis(), imageSize.width(), imageSize.height(), extensionOf(path.getFileName().toString()).replace(".", "")));
+                        images.add(new ImageEntry(
+                                path.toString(),
+                                path.getFileName().toString(),
+                                Files.getLastModifiedTime(path).toMillis(),
+                                imageSize.width(),
+                                imageSize.height(),
+                                extensionOf(path.getFileName().toString()).replace(".", ""),
+                                Files.size(path)
+                        ));
                     }
                 } catch (IOException ignored) {
                     // ignore unreadable entries
@@ -676,7 +684,7 @@ public class PhotoService {
     public record FolderEntries(String currentPath, List<ImageEntry> images, List<FolderEntry> folders) {
     }
 
-    public record ImageEntry(String path, String name, long modifiedAt, int width, int height, String extension) {
+    public record ImageEntry(String path, String name, long modifiedAt, int width, int height, String extension, long sizeBytes) {
     }
 
     public record FolderEntry(String path, String name, long modifiedAt, int imageCount) {

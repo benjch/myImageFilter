@@ -236,8 +236,25 @@ button {
 
 .viewer-toolbar {
   color: #d0d0d0;
-  white-space: pre-line;
   text-align: center;
+  min-width: min(94vw, 1200px);
+}
+
+.viewer-toolbar-shortcuts,
+.viewer-toolbar-path {
+  white-space: pre-line;
+}
+
+.viewer-toolbar-meta {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-weight: 700;
+}
+
+.viewer-toolbar-size {
+  min-width: 110px;
+  text-align: left;
 }
 
 .stretch-toggle {

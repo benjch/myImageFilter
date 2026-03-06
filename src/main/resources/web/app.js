@@ -407,10 +407,69 @@ function showCurrentImage() {
   state.currentImageIndex = Math.max(0, Math.min(state.images.length - 1, state.currentImageIndex));
   const img = state.images[state.currentImageIndex];
   resetViewerImageZoom();
+  viewerImage.dataset.imagePath = img.path;
   viewerImage.src = `/api/image?path=${encodeURIComponent(img.path)}`;
-  if (viewerToolbar) viewerToolbar.textContent = `${VIEWER_TOOLBAR_BASE_TEXT}\n${img.path}`;
+  updateViewerToolbar(img.path);
   persistUiState();
 }
+
+function formatImageSize(sizeBytes) {
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    return null;
+  }
+  const kiloOctets = sizeBytes / 1024;
+  if (kiloOctets < 1024) {
+    return `${kiloOctets.toFixed(1)} Ko`;
+  }
+  const megaOctets = kiloOctets / 1024;
+  return `${megaOctets.toFixed(2)} Mo`;
+}
+
+function updateViewerToolbar(imagePath, imageResolution = null, imageSizeLabel = null) {
+  if (!viewerToolbar) return;
+
+  viewerToolbar.replaceChildren();
+
+  const shortcutsLine = document.createElement('div');
+  shortcutsLine.className = 'viewer-toolbar-shortcuts';
+  shortcutsLine.textContent = VIEWER_TOOLBAR_BASE_TEXT;
+  viewerToolbar.appendChild(shortcutsLine);
+
+  if (imageResolution || imageSizeLabel) {
+    const metaLine = document.createElement('div');
+    metaLine.className = 'viewer-toolbar-meta';
+
+    const resolutionSpan = document.createElement('span');
+    resolutionSpan.className = 'viewer-toolbar-resolution';
+    resolutionSpan.textContent = imageResolution ? `Résolution: ${imageResolution}` : 'Résolution: —';
+    metaLine.appendChild(resolutionSpan);
+
+    if (imageSizeLabel) {
+      const sizeSpan = document.createElement('span');
+      sizeSpan.className = 'viewer-toolbar-size';
+      sizeSpan.textContent = `Taille: ${imageSizeLabel}`;
+      metaLine.appendChild(sizeSpan);
+    }
+
+    viewerToolbar.appendChild(metaLine);
+  }
+
+  const pathLine = document.createElement('div');
+  pathLine.className = 'viewer-toolbar-path';
+  pathLine.textContent = imagePath;
+  viewerToolbar.appendChild(pathLine);
+}
+
+viewerImage.addEventListener('load', () => {
+  if (!state.fullScreen) return;
+  const currentImage = state.images[state.currentImageIndex];
+  if (!currentImage || viewerImage.dataset.imagePath !== currentImage.path) return;
+  const width = viewerImage.naturalWidth;
+  const height = viewerImage.naturalHeight;
+  if (!width || !height) return;
+  const fileSizeLabel = formatImageSize(currentImage.sizeBytes);
+  updateViewerToolbar(currentImage.path, `${width}x${height}`, fileSizeLabel);
+});
 
 function closeViewer() {
   if (state.fullScreen) {
