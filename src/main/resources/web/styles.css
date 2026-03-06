@@ -80,17 +80,34 @@ button {
 
 .controls {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
   background: #f5f5f3;
+  flex-wrap: wrap;
 }
 
-.controls label {
+.controls-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 420px;
+  min-width: 320px;
+}
+
+.controls-group label {
   font-size: 14px;
   color: #333;
   white-space: nowrap;
+}
+
+.scrap-group {
+  justify-content: flex-end;
+}
+
+.scrap-group input {
+  min-width: 280px;
 }
 
 .count {

@@ -35,10 +35,23 @@ const mosaicModeBtn = document.getElementById('mosaicModeBtn');
 const toast = document.getElementById('toast');
 const keepDirInput = document.getElementById('keepDirInput');
 const keepActions = document.getElementById('keepActions');
+const googleSearchInput = document.getElementById('googleSearchInput');
+const scrapGoogleBtn = document.getElementById('scrapGoogleBtn');
 
 folderPathInput.value = DEFAULT_START_PATH;
 
 document.getElementById('saveKeepBtn').addEventListener('click', saveKeepDir);
+if (scrapGoogleBtn) {
+  scrapGoogleBtn.addEventListener('click', openGoogleImagesSearch);
+}
+if (googleSearchInput) {
+  googleSearchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openGoogleImagesSearch();
+    }
+  });
+}
 openFolderBtn.addEventListener('click', () => openFolderFromInput().catch(handleError));
 if (loadImagesBtn) {
   loadImagesBtn.addEventListener('click', () => importImagesFromClipboardHtml().catch(handleError));
@@ -232,6 +245,7 @@ async function loadFolder(path, preferredSelectedPath = null) {
     state.selectedIndex = 0;
   }
   render();
+  updateGoogleSearchSuggestion();
   persistUiState();
 }
 
@@ -572,6 +586,52 @@ function blobToBase64(blob) {
   });
 }
 
+
+
+function removeDateParts(value) {
+  if (!value) return '';
+
+  let result = value;
+  result = result.replace(/^(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})\s*[-_. ]+\s*/i, '');
+  result = result.replace(/\s*[-_. ]+\s*(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})$/i, '');
+
+  result = result
+    .replace(/[._]{2,}/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[._\-\s]+|[._\-\s]+$/g, '');
+
+  return result;
+}
+
+function buildGoogleCoverQuery() {
+  const sourcePath = folderPathInput.value.trim() || state.currentPath;
+  const folderName = extractFolderName(sourcePath);
+  const cleanedFolderName = removeDateParts(folderName.replace(/[_]+/g, ' ').trim());
+  if (!cleanedFolderName) return 'cover';
+  return `${cleanedFolderName} cover`;
+}
+
+function updateGoogleSearchSuggestion() {
+  if (!googleSearchInput) return;
+  if (googleSearchInput.value.trim()) return;
+  googleSearchInput.value = buildGoogleCoverQuery();
+}
+
+function openGoogleImagesSearch() {
+  const defaultQuery = buildGoogleCoverQuery();
+  const query = (googleSearchInput?.value || '').trim() || defaultQuery;
+  if (!query) {
+    showToast('Recherche Google vide');
+    return;
+  }
+
+  if (googleSearchInput && !googleSearchInput.value.trim()) {
+    googleSearchInput.value = query;
+  }
+
+  const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 function extractFolderName(path) {
   if (!path) return '';
