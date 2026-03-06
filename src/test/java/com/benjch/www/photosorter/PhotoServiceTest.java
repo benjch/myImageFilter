@@ -145,6 +145,17 @@ class PhotoServiceTest {
         assertEquals(0, withoutImagesEntry.imageCount());
     }
 
+
+    @Test
+    void sanitizeParallelismShouldClampValues() {
+        PhotoService service = new PhotoService(new ThumbnailCache());
+
+        assertEquals(50, service.sanitizeParallelism(0));
+        assertEquals(50, service.sanitizeParallelism(-3));
+        assertEquals(4, service.sanitizeParallelism(4));
+        assertEquals(50, service.sanitizeParallelism(99));
+    }
+
     @Test
     void extractGoogleSourcePageUrlsShouldReturnDecodedImgrefurlValues() {
         PhotoService service = new PhotoService(new ThumbnailCache());

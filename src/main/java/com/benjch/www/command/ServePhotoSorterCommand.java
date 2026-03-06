@@ -134,7 +134,8 @@ public class ServePhotoSorterCommand implements Command {
                 String folderPath = String.valueOf(body.getOrDefault("folderPath", ""));
                 String queryValue = String.valueOf(body.getOrDefault("query", ""));
                 int maxImages = parseIntegerBodyValue(body.get("maxImages"), 20);
-                HtmlImportResult result = photoService.scrapeGoogleImages(folderPath, queryValue, maxImages);
+                int parallelism = parseIntegerBodyValue(body.get("parallelism"), 50);
+                HtmlImportResult result = photoService.scrapeGoogleImages(folderPath, queryValue, maxImages, parallelism);
                 sendJson(exchange, 200, Map.of("status", "ok", "importedCount", result.importedCount(), "files", result.files()));
             }));
 

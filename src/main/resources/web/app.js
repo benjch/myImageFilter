@@ -872,7 +872,8 @@ async function scrapGoogleQueryToCurrentFolder() {
     const result = await api('/api/scrap-google-images', 'POST', {
       folderPath: state.currentPath,
       query,
-      maxImages: 20
+      maxImages: 20,
+      parallelism: 50
     });
 
     stopScrapStatus(result.importedCount || 0);

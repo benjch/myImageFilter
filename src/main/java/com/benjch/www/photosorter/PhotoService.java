@@ -30,6 +30,9 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -45,6 +48,8 @@ public class PhotoService {
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
     private static final String BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
     private static final int MAX_CLIPBOARD_IMAGE_BYTES = 10 * 1024 * 1024;
+    private static final int DEFAULT_GOOGLE_SCRAP_PARALLELISM = 50;
+    private static final int MAX_GOOGLE_SCRAP_PARALLELISM = 50;
 
     private final ThumbnailCache thumbnailCache;
 
@@ -212,6 +217,10 @@ public class PhotoService {
 
 
     public HtmlImportResult scrapeGoogleImages(String folderPath, String query, int maxImages) throws IOException {
+        return scrapeGoogleImages(folderPath, query, maxImages, DEFAULT_GOOGLE_SCRAP_PARALLELISM);
+    }
+
+    public HtmlImportResult scrapeGoogleImages(String folderPath, String query, int maxImages, int parallelism) throws IOException {
         Path folder = resolveSafePath(folderPath);
         if (!Files.isDirectory(folder)) {
             throw new IllegalArgumentException("Not a directory: " + folderPath);
@@ -221,6 +230,7 @@ public class PhotoService {
         }
 
         int safeMax = Math.max(1, Math.min(maxImages <= 0 ? 20 : maxImages, 100));
+        int safeParallelism = sanitizeParallelism(parallelism);
         String url = "https://www.google.com/search?udm=2&q=" + java.net.URLEncoder.encode(query, StandardCharsets.UTF_8);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
@@ -243,28 +253,7 @@ public class PhotoService {
         List<String> files = new ArrayList<>();
         Set<String> seenUrls = new HashSet<>();
         List<String> sourcePageUrls = extractGoogleSourcePageUrls(html);
-        for (String sourcePageUrl : sourcePageUrls) {
-            if (files.size() >= safeMax) {
-                break;
-            }
-            List<String> candidates = extractImageUrlsFromWebPage(sourcePageUrl);
-            for (String candidate : candidates) {
-                if (files.size() >= safeMax) {
-                    break;
-                }
-                if (!looksLikeImageUrl(candidate) || !seenUrls.add(candidate)) {
-                    continue;
-                }
-                try {
-                    ImportedImage imported = loadImageFromSrc(candidate);
-                    Path target = findAvailableName(folder, imported.baseName(), "." + imported.extension());
-                    Files.write(target, imported.bytes());
-                    files.add(target.getFileName().toString());
-                } catch (Exception ignored) {
-                    // continue on invalid or blocked source
-                }
-            }
-        }
+        importFromSourcePagesConcurrently(folder, safeMax, safeParallelism, sourcePageUrls, seenUrls, files);
 
         if (files.isEmpty()) {
             Matcher matcher = GOOGLE_IMAGE_URL_PATTERN.matcher(html);
@@ -292,6 +281,84 @@ public class PhotoService {
         }
 
         return new HtmlImportResult(files.size(), files);
+    }
+
+    int sanitizeParallelism(int parallelism) {
+        if (parallelism <= 0) {
+            return DEFAULT_GOOGLE_SCRAP_PARALLELISM;
+        }
+        return Math.min(parallelism, MAX_GOOGLE_SCRAP_PARALLELISM);
+    }
+
+    private void importFromSourcePagesConcurrently(Path folder,
+                                                   int safeMax,
+                                                   int safeParallelism,
+                                                   List<String> sourcePageUrls,
+                                                   Set<String> seenUrls,
+                                                   List<String> files) {
+        if (sourcePageUrls.isEmpty()) {
+            return;
+        }
+
+        List<String> pendingCandidates = new ArrayList<>();
+        List<Future<List<String>>> futures = new ArrayList<>();
+        try (ExecutorService executor = Executors.newFixedThreadPool(safeParallelism)) {
+            for (String sourcePageUrl : sourcePageUrls) {
+                futures.add(executor.submit(() -> extractImageUrlsFromWebPage(sourcePageUrl)));
+            }
+
+            for (Future<List<String>> future : futures) {
+                if (files.size() >= safeMax) {
+                    break;
+                }
+                try {
+                    List<String> candidates = future.get();
+                    for (String candidate : candidates) {
+                        if (looksLikeImageUrl(candidate) && seenUrls.add(candidate)) {
+                            pendingCandidates.add(candidate);
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // continue on blocked/unreachable source page
+                }
+            }
+
+            List<Future<ImportedImageFile>> downloadFutures = new ArrayList<>();
+            for (String candidate : pendingCandidates) {
+                downloadFutures.add(executor.submit(() -> downloadImportedImageFile(candidate)));
+            }
+
+            for (Future<ImportedImageFile> future : downloadFutures) {
+                if (files.size() >= safeMax) {
+                    break;
+                }
+                try {
+                    ImportedImageFile importedFile = future.get();
+                    if (importedFile == null) {
+                        continue;
+                    }
+                    synchronized (files) {
+                        if (files.size() >= safeMax) {
+                            continue;
+                        }
+                        Path target = findAvailableName(folder, importedFile.importedImage().baseName(), "." + importedFile.importedImage().extension());
+                        Files.write(target, importedFile.importedImage().bytes());
+                        files.add(target.getFileName().toString());
+                    }
+                } catch (Exception ignored) {
+                    // continue on invalid or blocked source
+                }
+            }
+        }
+    }
+
+    private ImportedImageFile downloadImportedImageFile(String candidate) {
+        try {
+            ImportedImage imported = loadImageFromSrc(candidate);
+            return new ImportedImageFile(candidate, imported);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     List<String> extractGoogleSourcePageUrls(String html) {
@@ -700,6 +767,9 @@ public class PhotoService {
     }
 
     private record ImportedImage(byte[] bytes, String extension, String baseName) {
+    }
+
+    private record ImportedImageFile(String sourceUrl, ImportedImage importedImage) {
     }
 
     private record ImageSize(int width, int height) {
