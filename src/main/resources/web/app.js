@@ -582,6 +582,31 @@ function extractFolderName(path) {
   return segments.length ? segments[segments.length - 1] : '';
 }
 
+function extractGameName(folderName) {
+  if (!folderName) return '';
+
+  const regionPattern = '(?:eu|eur|europe|us|usa|na|jp|jpn|japan|world|ww|pal|ntsc|fr|fra)';
+
+  let value = folderName
+    .replace(/^\s+|\s+$/g, '')
+    .replace(/^[._\-\s]+|[._\-\s]+$/g, '');
+
+  if (!value) return '';
+
+  value = value.replace(/^(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})\s*[-_. ]+\s*/i, '');
+  value = value.replace(/\s*[-_. ]+\s*(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})$/i, '');
+
+  value = value.replace(new RegExp(`\\s*[[(]\\s*${regionPattern}\\s*[)\\]]\\s*$`, 'i'), '');
+  value = value.replace(new RegExp(`\\s*[-_. ]+\\s*${regionPattern}\\s*$`, 'i'), '');
+
+  value = value
+    .replace(/[._]{2,}/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[._\-\s]+|[._\-\s]+$/g, '');
+
+  return value || folderName;
+}
+
 
 async function copySelectedImageNameToClipboard() {
   if (!navigator.clipboard?.writeText) {
@@ -590,12 +615,13 @@ async function copySelectedImageNameToClipboard() {
 
   const sourcePath = folderPathInput.value.trim() || state.currentPath;
   const folderName = extractFolderName(sourcePath);
-  if (!folderName) {
+  const gameName = extractGameName(folderName);
+  if (!gameName) {
     throw new Error('Nom de dossier invalide');
   }
 
-  await navigator.clipboard.writeText(folderName);
-  showToast(`Nom copié dans le presse-papiers : ${folderName}`);
+  await navigator.clipboard.writeText(gameName);
+  showToast(`Nom copié dans le presse-papiers : ${gameName}`);
 }
 
 async function copySelectedImageToClipboard() {
