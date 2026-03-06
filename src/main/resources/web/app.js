@@ -1047,6 +1047,10 @@ function onKeyDown(e) {
     return;
   }
 
+  if (isEditableElementActive()) {
+    return;
+  }
+
   if (e.key === 'ArrowLeft') {
     e.preventDefault();
     select(state.selectedIndex - 1);
