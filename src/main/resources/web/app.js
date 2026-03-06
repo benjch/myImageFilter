@@ -142,7 +142,7 @@ grid.addEventListener('click', (event) => {
 function persistUiState() {
   const selectedEntry = currentEntry();
   const selectedImagePath = state.fullScreen
-    ? state.images[state.currentImageIndex]?.path || null
+    ? currentViewerImage()?.path || null
     : (selectedEntry && selectedEntry.type === 'image' ? selectedEntry.path : null);
 
   const payload = {
@@ -252,7 +252,7 @@ async function init() {
   }
 
   if (persisted?.fullScreen && persisted?.selectedImagePath) {
-    const restoredImageIndex = state.images.findIndex((img) => img.path === persisted.selectedImagePath);
+    const restoredImageIndex = visibleImagesInCurrentOrder().findIndex((img) => img.path === persisted.selectedImagePath);
     if (restoredImageIndex >= 0) {
       state.currentImageIndex = restoredImageIndex;
       state.fullScreen = true;
@@ -308,6 +308,19 @@ function rebuildEntries() {
   ];
 }
 
+function visibleImagesInCurrentOrder() {
+  return state.entries.filter((entry) => entry.type === 'image');
+}
+
+function currentViewerImage() {
+  const visibleImages = visibleImagesInCurrentOrder();
+  if (visibleImages.length === 0) {
+    return null;
+  }
+  state.currentImageIndex = Math.max(0, Math.min(visibleImages.length - 1, state.currentImageIndex));
+  return visibleImages[state.currentImageIndex];
+}
+
 function updateSortBySizeButtonLabel() {
   if (!sortBySizeBtn) return;
   const enabled = state.sortBySizeEnabled;
@@ -321,6 +334,7 @@ function updateSortBySizeButtonLabel() {
 function setSortBySizeEnabled(enabled, options = {}) {
   const normalizedEnabled = Boolean(enabled);
   const selectedPath = currentEntry()?.path || null;
+  const currentViewerImagePath = state.fullScreen ? currentViewerImage()?.path || null : null;
   state.sortBySizeEnabled = normalizedEnabled;
   updateSortBySizeButtonLabel();
   rebuildEntries();
@@ -330,6 +344,14 @@ function setSortBySizeEnabled(enabled, options = {}) {
   } else if (state.selectedIndex >= state.entries.length) {
     state.selectedIndex = Math.max(0, state.entries.length - 1);
   }
+
+  if (state.fullScreen && currentViewerImagePath) {
+    const visibleImages = visibleImagesInCurrentOrder();
+    const nextViewerIndex = visibleImages.findIndex((image) => image.path === currentViewerImagePath);
+    state.currentImageIndex = nextViewerIndex >= 0 ? nextViewerIndex : 0;
+    showCurrentImage();
+  }
+
   render();
   if (!options.skipPersist) {
     persistUiState();
@@ -418,7 +440,8 @@ function openFullscreenFromSelected() {
   const entry = currentEntry();
   if (!entry || entry.type !== 'image') return;
   state.fullScreen = true;
-  state.currentImageIndex = state.images.findIndex((img) => img.path === entry.path);
+  const visibleImages = visibleImagesInCurrentOrder();
+  state.currentImageIndex = visibleImages.findIndex((img) => img.path === entry.path);
   showCurrentImage();
   viewer.classList.remove('hidden');
   updateKeepActionsVisibility();
@@ -435,7 +458,7 @@ function setStretchMode(enabled) {
   }
 
   if (state.fullScreen) {
-    const currentImage = state.images[state.currentImageIndex];
+    const currentImage = currentViewerImage();
     if (currentImage) {
       const width = viewerImage.naturalWidth;
       const height = viewerImage.naturalHeight;
@@ -473,15 +496,16 @@ function adjustViewerZoom(deltaDirection) {
 }
 
 function showCurrentImage() {
-  if (state.images.length === 0) {
+  const visibleImages = visibleImagesInCurrentOrder();
+  if (visibleImages.length === 0) {
     viewer.classList.add('hidden');
     state.fullScreen = false;
     if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
     persistUiState();
     return;
   }
-  state.currentImageIndex = Math.max(0, Math.min(state.images.length - 1, state.currentImageIndex));
-  const img = state.images[state.currentImageIndex];
+  state.currentImageIndex = Math.max(0, Math.min(visibleImages.length - 1, state.currentImageIndex));
+  const img = visibleImages[state.currentImageIndex];
   resetViewerImageZoom();
   viewerImage.dataset.imagePath = img.path;
   viewerImage.src = `/api/image?path=${encodeURIComponent(img.path)}`;
@@ -541,7 +565,7 @@ function updateViewerToolbar(imagePath, imageResolution = null, imageSizeLabel =
 
 viewerImage.addEventListener('load', () => {
   if (!state.fullScreen) return;
-  const currentImage = state.images[state.currentImageIndex];
+  const currentImage = currentViewerImage();
   if (!currentImage || viewerImage.dataset.imagePath !== currentImage.path) return;
   const width = viewerImage.naturalWidth;
   const height = viewerImage.naturalHeight;
@@ -552,7 +576,7 @@ viewerImage.addEventListener('load', () => {
 
 function closeViewer() {
   if (state.fullScreen) {
-    const currentImagePath = state.images[state.currentImageIndex]?.path;
+    const currentImagePath = currentViewerImage()?.path;
     if (currentImagePath) {
       const entryIndex = state.entries.findIndex((entry) => entry.type === 'image' && entry.path === currentImagePath);
       if (entryIndex >= 0) {
@@ -580,40 +604,40 @@ function updateKeepActionsVisibility() {
 }
 
 async function deleteCurrent() {
-  const entry = state.fullScreen ? state.images[state.currentImageIndex] : currentEntry();
+  const entry = state.fullScreen ? currentViewerImage() : currentEntry();
   if (!entry || entry.type === 'folder') {
     showToast('Action non disponible sur un dossier');
     return;
   }
 
+  const visibleImages = visibleImagesInCurrentOrder();
+  const currentImageIdx = visibleImages.findIndex((img) => img.path === entry.path);
   let mosaicPreferredPath = null;
-  if (!state.fullScreen) {
-    const currentImageIdx = state.images.findIndex((img) => img.path === entry.path);
-    if (currentImageIdx >= 0) {
-      if (currentImageIdx < state.images.length - 1) {
-        mosaicPreferredPath = state.images[currentImageIdx + 1].path;
-      } else if (currentImageIdx > 0) {
-        mosaicPreferredPath = state.images[currentImageIdx - 1].path;
-      }
+  if (currentImageIdx >= 0) {
+    if (currentImageIdx < visibleImages.length - 1) {
+      mosaicPreferredPath = visibleImages[currentImageIdx + 1].path;
+    } else if (currentImageIdx > 0) {
+      mosaicPreferredPath = visibleImages[currentImageIdx - 1].path;
     }
   }
 
   await api('/api/delete', 'POST', { path: entry.path });
   showToast(`Supprimé : ${entry.name}`);
-
-  const deletedPath = entry.path;
   await loadFolder(state.currentPath, mosaicPreferredPath);
 
   if (state.fullScreen) {
-    let newIndex = state.images.findIndex((i) => i.path === deletedPath);
-    if (newIndex < 0) newIndex = Math.min(state.currentImageIndex, state.images.length - 1);
-    state.currentImageIndex = newIndex;
+    const refreshedVisibleImages = visibleImagesInCurrentOrder();
+    if (refreshedVisibleImages.length === 0) {
+      closeViewer();
+      return;
+    }
+    state.currentImageIndex = Math.min(currentImageIdx, refreshedVisibleImages.length - 1);
     showCurrentImage();
   }
 }
 
 async function keepCurrent(variant = 'normal') {
-  const entry = state.fullScreen ? state.images[state.currentImageIndex] : currentEntry();
+  const entry = state.fullScreen ? currentViewerImage() : currentEntry();
   if (!entry || entry.type === 'folder') {
     showToast('Action non disponible sur un dossier');
     return;
@@ -623,7 +647,8 @@ async function keepCurrent(variant = 'normal') {
   showToast(`Copié dans Keep : ${result.filename}`);
 
   if (state.fullScreen) {
-    if (state.currentImageIndex < state.images.length - 1) {
+    const visibleImages = visibleImagesInCurrentOrder();
+    if (state.currentImageIndex < visibleImages.length - 1) {
       state.currentImageIndex += 1;
       showCurrentImage();
     }
@@ -707,7 +732,7 @@ async function refreshCurrentFolder() {
     throw new Error('Aucun dossier courant');
   }
   const preferredPath = state.fullScreen
-    ? state.images[state.currentImageIndex]?.path ?? null
+    ? currentViewerImage()?.path ?? null
     : currentEntry()?.path ?? null;
   await api('/api/thumbnail-cache/clear', 'POST');
   state.thumbnailBust = Date.now();
@@ -1076,7 +1101,7 @@ async function writeImageBlobToClipboard(imageBlob) {
 }
 
 async function copySelectedImageToClipboard() {
-  const entry = state.fullScreen ? state.images[state.currentImageIndex] : currentEntry();
+  const entry = state.fullScreen ? currentViewerImage() : currentEntry();
   const isInvalidFullscreenEntry = state.fullScreen && (!entry || !entry.path);
   const isInvalidMosaicEntry = !state.fullScreen && (!entry || entry.type !== 'image');
   if (isInvalidFullscreenEntry || isInvalidMosaicEntry) {
@@ -1170,7 +1195,8 @@ function endViewerImageDrag() {
 
 function onViewerWheel(event) {
   if (!state.fullScreen) return;
-  if (!state.images.length) return;
+  const visibleImages = visibleImagesInCurrentOrder();
+  if (!visibleImages.length) return;
 
   event.preventDefault();
   if (event.ctrlKey && !event.altKey && !event.metaKey) {
@@ -1180,7 +1206,7 @@ function onViewerWheel(event) {
   }
 
   const direction = event.deltaY > 0 ? 1 : -1;
-  if (direction > 0 && state.currentImageIndex < state.images.length - 1) {
+  if (direction > 0 && state.currentImageIndex < visibleImages.length - 1) {
     state.currentImageIndex += 1;
     showCurrentImage();
   } else if (direction < 0 && state.currentImageIndex > 0) {
