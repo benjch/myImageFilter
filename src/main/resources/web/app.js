@@ -715,15 +715,67 @@ async function copySelectedImageNameToClipboard() {
   showToast(`Nom copié dans le presse-papiers : ${gameName}`);
 }
 
-async function copySelectedImageToClipboard() {
-  if (state.fullScreen) {
-    showToast('Action disponible en mode mosaïque uniquement');
+function blobToPngClipboardBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const imageUrl = URL.createObjectURL(blob);
+    const image = new Image();
+
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('Canvas 2D indisponible'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0);
+        canvas.toBlob((pngBlob) => {
+          if (!pngBlob) {
+            reject(new Error('Conversion PNG impossible'));
+            return;
+          }
+          resolve(pngBlob);
+        }, 'image/png');
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error('Chargement image impossible pour conversion PNG'));
+    };
+
+    image.src = imageUrl;
+  });
+}
+
+async function writeImageBlobToClipboard(imageBlob) {
+  const sourceMimeType = imageBlob.type || 'image/png';
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ [sourceMimeType]: imageBlob })]);
     return;
+  } catch (error) {
+    if (!sourceMimeType.startsWith('image/')) {
+      throw error;
+    }
   }
 
-  const entry = currentEntry();
-  if (!entry || entry.type !== 'image') {
-    showToast('Sélectionnez une image dans la mosaïque');
+  const pngBlob = await blobToPngClipboardBlob(imageBlob);
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+}
+
+async function copySelectedImageToClipboard() {
+  const entry = state.fullScreen ? state.images[state.currentImageIndex] : currentEntry();
+  const isInvalidFullscreenEntry = state.fullScreen && (!entry || !entry.path);
+  const isInvalidMosaicEntry = !state.fullScreen && (!entry || entry.type !== 'image');
+  if (isInvalidFullscreenEntry || isInvalidMosaicEntry) {
+    showToast(state.fullScreen ? 'Aucune image sélectionnée en plein écran' : 'Sélectionnez une image dans la mosaïque');
     return;
   }
 
@@ -737,11 +789,8 @@ async function copySelectedImageToClipboard() {
   }
 
   const imageBlob = await response.blob();
-  const mimeType = imageBlob.type || 'image/png';
-  await navigator.clipboard.write([new ClipboardItem({ [mimeType]: imageBlob })]);
+  await writeImageBlobToClipboard(imageBlob);
   showToast(`Image copiée dans le presse-papiers : ${entry.name}`);
-
-  await refreshCurrentFolder();
 }
 
 function onViewerClick(event) {
@@ -851,6 +900,13 @@ function onKeyDown(e) {
   }
 
   if (state.fullScreen) {
+    if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      e.stopPropagation();
+      copySelectedImageToClipboard().catch(handleError);
+      return;
+    }
+
     if (e.key === 'ArrowLeft') {
       state.currentImageIndex--;
       showCurrentImage();
