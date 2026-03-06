@@ -863,7 +863,7 @@ async function scrapGoogleQueryToCurrentFolder() {
   }
 
   state.scrapInProgress = true;
-  const stopScrapStatus = startScrapStatusNotification();
+  const stopScrapStatus = startScrapStatusNotification(state.currentPath, state.images.length);
   if (scrapAllGoogleBtn) {
     scrapAllGoogleBtn.disabled = true;
   }
@@ -887,17 +887,37 @@ async function scrapGoogleQueryToCurrentFolder() {
   }
 }
 
-function startScrapStatusNotification() {
+function startScrapStatusNotification(folderPath, baselineImageCount = 0) {
   const startedAt = Date.now();
   let importedCount = 0;
+  let polling = false;
 
   const renderStatus = () => {
     const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
     showToast(`Scrapping en cours... ${importedCount} image(s) récupérée(s) • ${elapsedSeconds}s`, { persistent: true });
   };
 
+  const refreshImportedCount = async () => {
+    if (polling || !folderPath) {
+      return;
+    }
+    polling = true;
+    try {
+      const entries = await api(`/api/folder/entries?path=${encodeURIComponent(folderPath)}`);
+      const currentImageCount = Array.isArray(entries.images) ? entries.images.length : baselineImageCount;
+      importedCount = Math.max(0, currentImageCount - baselineImageCount);
+    } catch (_error) {
+      // ignore transient refresh failures while scraping is still running
+    } finally {
+      polling = false;
+    }
+  };
+
   renderStatus();
-  const timer = setInterval(renderStatus, 1000);
+  const timer = setInterval(() => {
+    refreshImportedCount();
+    renderStatus();
+  }, 1000);
 
   return (finalImportedCount = importedCount) => {
     importedCount = finalImportedCount;
