@@ -387,8 +387,21 @@ function showCurrentImage() {
 }
 
 function closeViewer() {
+  if (state.fullScreen) {
+    const currentImagePath = state.images[state.currentImageIndex]?.path;
+    if (currentImagePath) {
+      const entryIndex = state.entries.findIndex((entry) => entry.type === 'image' && entry.path === currentImagePath);
+      if (entryIndex >= 0) {
+        state.selectedIndex = entryIndex;
+        [...grid.children].forEach((el, i) => el.classList.toggle('selected', i === entryIndex));
+        ensureSelectedVisible();
+      }
+    }
+  }
+
   state.fullScreen = false;
   viewer.classList.add('hidden');
+  focusGridNavigation();
   updateKeepActionsVisibility();
   if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
   persistUiState();
