@@ -293,12 +293,13 @@ function render() {
     if (entry.type === 'image') {
       const width = entry.width > 0 ? entry.width : '?';
       const height = entry.height > 0 ? entry.height : '?';
+      const fileSizeLabel = formatImageSize(entry.sizeBytes);
       const extension = (entry.extension || '').toUpperCase();
       tile.innerHTML = `
         <div class="thumb-frame">
           <img loading="lazy" decoding="async" src="/api/thumbnail?path=${encodeURIComponent(entry.path)}&size=360&t=${state.thumbnailBust}" alt="${entry.name}" />
         </div>
-        <div class="tile-meta">${width}x${height}${extension ? `    ${extension}` : ''}</div>
+        <div class="tile-meta">${width}x${height}${fileSizeLabel ? ` • ${fileSizeLabel}` : ''}${extension ? `    ${extension}` : ''}</div>
         <div class="tile-name">${entry.name}</div>
       `;
     } else {
@@ -362,10 +363,21 @@ function openFullscreenFromSelected() {
 
 function setStretchMode(enabled) {
   state.stretchMode = enabled;
+  viewer.classList.toggle('stretch-mode', enabled);
   viewerImage.classList.toggle('stretched', enabled);
   if (stretchToggleBtn) {
     stretchToggleBtn.setAttribute('aria-pressed', String(enabled));
     stretchToggleBtn.textContent = `Mode étiré: ${enabled ? 'ON' : 'OFF'}`;
+  }
+
+  if (state.fullScreen) {
+    const currentImage = state.images[state.currentImageIndex];
+    if (currentImage) {
+      const width = viewerImage.naturalWidth;
+      const height = viewerImage.naturalHeight;
+      const imageResolution = width && height ? `${width}x${height}` : null;
+      updateViewerToolbar(currentImage.path, imageResolution, formatImageSize(currentImage.sizeBytes));
+    }
   }
 }
 
@@ -427,6 +439,7 @@ function formatImageSize(sizeBytes) {
 
 function updateViewerToolbar(imagePath, imageResolution = null, imageSizeLabel = null) {
   if (!viewerToolbar) return;
+  const showImageDetails = !state.stretchMode;
 
   viewerToolbar.replaceChildren();
 
@@ -435,7 +448,7 @@ function updateViewerToolbar(imagePath, imageResolution = null, imageSizeLabel =
   shortcutsLine.textContent = VIEWER_TOOLBAR_BASE_TEXT;
   viewerToolbar.appendChild(shortcutsLine);
 
-  if (imageResolution || imageSizeLabel) {
+  if (showImageDetails && (imageResolution || imageSizeLabel)) {
     const metaLine = document.createElement('div');
     metaLine.className = 'viewer-toolbar-meta';
 
@@ -454,10 +467,12 @@ function updateViewerToolbar(imagePath, imageResolution = null, imageSizeLabel =
     viewerToolbar.appendChild(metaLine);
   }
 
-  const pathLine = document.createElement('div');
-  pathLine.className = 'viewer-toolbar-path';
-  pathLine.textContent = imagePath;
-  viewerToolbar.appendChild(pathLine);
+  if (showImageDetails) {
+    const pathLine = document.createElement('div');
+    pathLine.className = 'viewer-toolbar-path';
+    pathLine.textContent = imagePath;
+    viewerToolbar.appendChild(pathLine);
+  }
 }
 
 viewerImage.addEventListener('load', () => {
