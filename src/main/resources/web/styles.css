@@ -68,6 +68,11 @@ button {
   gap: 7px;
 }
 
+.shortcut-btn[aria-pressed="true"] {
+  background: #dbeafe;
+  border-color: #7aa7f2;
+}
+
 .shortcut-btn .key {
   min-width: 24px;
   height: 18px;

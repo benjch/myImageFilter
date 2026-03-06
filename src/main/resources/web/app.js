@@ -29,7 +29,8 @@ const state = {
     lastClientY: 0,
     moved: false
   },
-  suppressNextImageClick: false
+  suppressNextImageClick: false,
+  sortBySizeEnabled: false
 };
 
 const grid = document.getElementById('grid');
@@ -41,6 +42,7 @@ const loadImageBtn = document.getElementById('loadImageBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const uploadBtn = document.getElementById('uploadBtn');
 const getNameBtn = document.getElementById('getNameBtn');
+const sortBySizeBtn = document.getElementById('sortBySizeBtn');
 const imageCount = document.getElementById('imageCount');
 const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
@@ -87,6 +89,11 @@ if (uploadBtn) {
 if (getNameBtn) {
   getNameBtn.addEventListener('click', () => copySelectedImageNameToClipboard().catch(handleError));
 }
+if (sortBySizeBtn) {
+  sortBySizeBtn.addEventListener('click', () => {
+    setSortBySizeEnabled(!state.sortBySizeEnabled);
+  });
+}
 if (goParentBtn) {
   goParentBtn.addEventListener('click', () => goParent().catch(handleError));
 }
@@ -122,6 +129,7 @@ if (mosaicModeBtn) {
   mosaicModeBtn.addEventListener('click', closeViewer);
 }
 setStretchMode(false);
+updateSortBySizeButtonLabel();
 
 grid.addEventListener('click', (event) => {
   const tile = event.target.closest('.tile');
@@ -141,7 +149,8 @@ function persistUiState() {
     currentPath: state.currentPath || folderPathInput.value.trim() || DEFAULT_START_PATH,
     selectedPath: selectedEntry?.path || null,
     selectedImagePath,
-    fullScreen: Boolean(state.fullScreen && selectedImagePath)
+    fullScreen: Boolean(state.fullScreen && selectedImagePath),
+    sortBySizeEnabled: Boolean(state.sortBySizeEnabled)
   };
 
   localStorage.setItem(RESTORE_STORAGE_KEY, JSON.stringify(payload));
@@ -166,6 +175,7 @@ function readUiStateFromUrl() {
   const selectedPath = url.searchParams.get('selected');
   const selectedImagePath = url.searchParams.get('image');
   const fullScreen = url.searchParams.get('fullscreen') === '1';
+  const sortBySizeEnabled = url.searchParams.get('sortBySize') === '1';
 
   if (!currentPath) {
     return null;
@@ -175,7 +185,8 @@ function readUiStateFromUrl() {
     currentPath,
     selectedPath,
     selectedImagePath,
-    fullScreen
+    fullScreen,
+    sortBySizeEnabled
   };
 }
 
@@ -206,6 +217,12 @@ function syncUrlWithUiState(payload) {
     url.searchParams.delete('fullscreen');
   }
 
+  if (payload.sortBySizeEnabled) {
+    url.searchParams.set('sortBySize', '1');
+  } else {
+    url.searchParams.delete('sortBySize');
+  }
+
   const nextUrl = `${url.pathname}${url.search}${url.hash}`;
   if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
     window.history.replaceState(null, '', nextUrl);
@@ -220,6 +237,8 @@ async function init() {
   const persisted = readUiStateFromUrl() || readPersistedUiState();
   const startupPath = persisted?.currentPath || DEFAULT_START_PATH;
   const preferredPath = persisted?.selectedPath || persisted?.selectedImagePath || null;
+
+  setSortBySizeEnabled(Boolean(persisted?.sortBySizeEnabled), { skipPersist: true });
 
   try {
     await loadFolder(startupPath, preferredPath);
@@ -257,10 +276,7 @@ async function loadFolder(path, preferredSelectedPath = null) {
   state.currentPath = data.currentPath;
   state.images = data.images;
   state.folders = data.folders;
-  state.entries = [
-    ...state.images.map((x) => ({ ...x, type: 'image' })),
-    ...state.folders.map((x) => ({ ...x, type: 'folder' }))
-  ];
+  rebuildEntries();
   if (preferredSelectedPath) {
     const preferredIndex = state.entries.findIndex((entry) => entry.path === preferredSelectedPath);
     state.selectedIndex = preferredIndex >= 0 ? preferredIndex : 0;
@@ -270,6 +286,54 @@ async function loadFolder(path, preferredSelectedPath = null) {
   render();
   updateGoogleSearchSuggestion();
   persistUiState();
+}
+
+function compareImagesBySizeDesc(left, right) {
+  const leftSize = Number.isFinite(left.sizeBytes) ? left.sizeBytes : -1;
+  const rightSize = Number.isFinite(right.sizeBytes) ? right.sizeBytes : -1;
+  if (rightSize !== leftSize) {
+    return rightSize - leftSize;
+  }
+  return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+}
+
+function rebuildEntries() {
+  const images = [...state.images];
+  if (state.sortBySizeEnabled) {
+    images.sort(compareImagesBySizeDesc);
+  }
+  state.entries = [
+    ...images.map((x) => ({ ...x, type: 'image' })),
+    ...state.folders.map((x) => ({ ...x, type: 'folder' }))
+  ];
+}
+
+function updateSortBySizeButtonLabel() {
+  if (!sortBySizeBtn) return;
+  const enabled = state.sortBySizeEnabled;
+  const label = sortBySizeBtn.querySelector('.label');
+  sortBySizeBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  if (label) {
+    label.textContent = enabled ? 'By size: ON' : 'By size: OFF';
+  }
+}
+
+function setSortBySizeEnabled(enabled, options = {}) {
+  const normalizedEnabled = Boolean(enabled);
+  const selectedPath = currentEntry()?.path || null;
+  state.sortBySizeEnabled = normalizedEnabled;
+  updateSortBySizeButtonLabel();
+  rebuildEntries();
+  if (selectedPath) {
+    const selectedIndex = state.entries.findIndex((entry) => entry.path === selectedPath);
+    state.selectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  } else if (state.selectedIndex >= state.entries.length) {
+    state.selectedIndex = Math.max(0, state.entries.length - 1);
+  }
+  render();
+  if (!options.skipPersist) {
+    persistUiState();
+  }
 }
 
 function focusGridNavigation() {
