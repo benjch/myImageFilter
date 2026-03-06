@@ -610,14 +610,16 @@ function removeDateParts(value) {
 function buildGoogleCoverQuery() {
   const sourcePath = folderPathInput.value.trim() || state.currentPath;
   const folderName = extractFolderName(sourcePath);
-  const cleanedFolderName = removeDateParts(folderName.replace(/[_]+/g, ' ').trim());
+  const normalizedFolderName = removeDateParts(folderName.replace(/[_]+/g, ' ').trim());
+  const cleanedFolderName = extractGameName(normalizedFolderName);
+  const region = extractRegionName(normalizedFolderName);
   if (!cleanedFolderName) return 'cover';
-  return `${cleanedFolderName} cover`;
+  if (!region) return `${cleanedFolderName} cover`;
+  return `${cleanedFolderName} ${region} cover`;
 }
 
 function updateGoogleSearchSuggestion() {
   if (!googleSearchInput) return;
-  if (googleSearchInput.value.trim()) return;
   googleSearchInput.value = buildGoogleCoverQuery();
 }
 
@@ -673,6 +675,46 @@ function extractFolderName(path) {
   return segments.length ? segments[segments.length - 1] : '';
 }
 
+function extractRegionName(folderName) {
+  if (!folderName) return '';
+
+  const regionPattern = '(?:eu|eur|europe|us|usa|na|jp|jpn|japan|world|ww|pal|ntsc|fr|fra)';
+  const regionMap = {
+    eu: 'Europe',
+    eur: 'Europe',
+    europe: 'Europe',
+    us: 'USA',
+    usa: 'USA',
+    na: 'USA',
+    jp: 'Japan',
+    jpn: 'Japan',
+    japan: 'Japan',
+    world: 'World',
+    ww: 'World',
+    pal: 'PAL',
+    ntsc: 'NTSC',
+    fr: 'France',
+    fra: 'France'
+  };
+
+  const value = folderName
+    .replace(/^\s+|\s+$/g, '')
+    .replace(/^[._\-\s]+|[._\-\s]+$/g, '');
+
+  if (!value) return '';
+
+  const bracketPrefix = value.match(new RegExp(`^[[(]\\s*(${regionPattern})\\s*[)\\]]`, 'i'));
+  const plainPrefix = value.match(new RegExp(`^(${regionPattern})\\s*[-_. ]+`, 'i'));
+  const bracketSuffix = value.match(new RegExp(`[[(]\\s*(${regionPattern})\\s*[)\\]]\\s*$`, 'i'));
+  const plainSuffix = value.match(new RegExp(`[-_. ]+(${regionPattern})\\s*$`, 'i'));
+
+  const foundRegion = bracketPrefix?.[1] || plainPrefix?.[1] || bracketSuffix?.[1] || plainSuffix?.[1] || '';
+  if (!foundRegion) return '';
+
+  const key = foundRegion.toLowerCase();
+  return regionMap[key] || foundRegion;
+}
+
 function extractGameName(folderName) {
   if (!folderName) return '';
 
@@ -689,6 +731,8 @@ function extractGameName(folderName) {
 
   value = value.replace(new RegExp(`\\s*[[(]\\s*${regionPattern}\\s*[)\\]]\\s*$`, 'i'), '');
   value = value.replace(new RegExp(`\\s*[-_. ]+\\s*${regionPattern}\\s*$`, 'i'), '');
+  value = value.replace(new RegExp(`^[[(]\\s*${regionPattern}\\s*[)\\]]\\s*[-_. ]+\\s*`, 'i'), '');
+  value = value.replace(new RegExp(`^${regionPattern}\\s*[-_. ]+\\s*`, 'i'), '');
 
   value = value
     .replace(/[._]{2,}/g, ' ')
