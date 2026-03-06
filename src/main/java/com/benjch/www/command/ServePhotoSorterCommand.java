@@ -25,6 +25,8 @@ import com.benjch.www.photosorter.PhotoService.HtmlImportResult;
 import com.benjch.www.photosorter.PhotoService.ImportedSingleImage;
 import com.benjch.www.photosorter.PhotoService.KeepResult;
 import com.benjch.www.photosorter.ThumbnailCache;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -40,7 +42,12 @@ public class ServePhotoSorterCommand implements Command {
     @Option(name = "-keepDir", usage = "Default keep folder", required = false)
     private String keepDir;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final int MAX_JSON_STRING_LENGTH = 14 * 1024 * 1024; // ~10 MiB binary payload in base64
+
+    private final ObjectMapper objectMapper = new ObjectMapper(
+            JsonFactory.builder()
+                    .streamReadConstraints(StreamReadConstraints.builder().maxStringLength(MAX_JSON_STRING_LENGTH).build())
+                    .build());
 
     @Override
     public void execute() {

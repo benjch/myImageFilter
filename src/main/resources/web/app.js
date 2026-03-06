@@ -3,6 +3,9 @@ const DEFAULT_START_PATH = 'C:\\Users\\NR5145\\HD_D\\benjch\\gitBenjch\\myScrapp
 const VIEWER_TOOLBAR_BASE_TEXT = 'Échap: retour mosaïque • ←/→ navigation • Suppr supprimer • 1/2/3/4 keep • Backspace/Échap (mosaïque): dossier parent';
 
 const RESTORE_STORAGE_KEY = 'myImageFilter.uiState';
+const FULLSCREEN_ZOOM_MIN = 0.1;
+const FULLSCREEN_ZOOM_MAX = 7;
+const FULLSCREEN_ZOOM_STEP = 0.2;
 
 const state = {
   currentPath: '',
@@ -12,6 +15,7 @@ const state = {
   selectedIndex: 0,
   fullScreen: false,
   currentImageIndex: 0,
+  fullScreenZoom: 1,
   keepDir: '',
   stretchMode: false,
   thumbnailBust: 0,
@@ -351,6 +355,21 @@ function setStretchMode(enabled) {
   }
 }
 
+function updateViewerImageZoom() {
+  viewerImage.style.transform = `scale(${state.fullScreenZoom})`;
+}
+
+function resetViewerImageZoom() {
+  state.fullScreenZoom = 1;
+  updateViewerImageZoom();
+}
+
+function adjustViewerZoom(deltaDirection) {
+  const nextZoom = state.fullScreenZoom + (deltaDirection * FULLSCREEN_ZOOM_STEP);
+  state.fullScreenZoom = Math.max(FULLSCREEN_ZOOM_MIN, Math.min(FULLSCREEN_ZOOM_MAX, Number(nextZoom.toFixed(2))));
+  updateViewerImageZoom();
+}
+
 function showCurrentImage() {
   if (state.images.length === 0) {
     viewer.classList.add('hidden');
@@ -361,6 +380,7 @@ function showCurrentImage() {
   }
   state.currentImageIndex = Math.max(0, Math.min(state.images.length - 1, state.currentImageIndex));
   const img = state.images[state.currentImageIndex];
+  resetViewerImageZoom();
   viewerImage.src = `/api/image?path=${encodeURIComponent(img.path)}`;
   if (viewerToolbar) viewerToolbar.textContent = `${VIEWER_TOOLBAR_BASE_TEXT}\n${img.path}`;
   persistUiState();
@@ -894,6 +914,12 @@ function onViewerWheel(event) {
   if (!state.images.length) return;
 
   event.preventDefault();
+  if (event.ctrlKey && !event.altKey && !event.metaKey) {
+    const direction = event.deltaY > 0 ? -1 : 1;
+    adjustViewerZoom(direction);
+    return;
+  }
+
   const direction = event.deltaY > 0 ? 1 : -1;
   if (direction > 0 && state.currentImageIndex < state.images.length - 1) {
     state.currentImageIndex += 1;
