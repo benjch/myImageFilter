@@ -19,7 +19,17 @@ const state = {
   keepDir: '',
   stretchMode: false,
   thumbnailBust: 0,
-  scrapInProgress: false
+  scrapInProgress: false,
+  fullScreenPanX: 0,
+  fullScreenPanY: 0,
+  viewerDrag: {
+    active: false,
+    pointerId: null,
+    lastClientX: 0,
+    lastClientY: 0,
+    moved: false
+  },
+  suppressNextImageClick: false
 };
 
 const grid = document.getElementById('grid');
@@ -90,6 +100,10 @@ document.addEventListener('keydown', onKeyDown);
 window.addEventListener('beforeunload', persistUiState);
 viewer.addEventListener('wheel', onViewerWheel, { passive: false });
 viewer.addEventListener('click', onViewerClick);
+viewerImage.addEventListener('pointerdown', onViewerImagePointerDown);
+viewerImage.addEventListener('pointermove', onViewerImagePointerMove);
+viewerImage.addEventListener('pointerup', onViewerImagePointerUpOrCancel);
+viewerImage.addEventListener('pointercancel', onViewerImagePointerUpOrCancel);
 
 if (keepActions) {
   keepActions.addEventListener('click', (event) => {
@@ -356,17 +370,29 @@ function setStretchMode(enabled) {
 }
 
 function updateViewerImageZoom() {
-  viewerImage.style.transform = `scale(${state.fullScreenZoom})`;
+  viewerImage.style.transform = `translate(${state.fullScreenPanX}px, ${state.fullScreenPanY}px) scale(${state.fullScreenZoom})`;
+  viewerImage.classList.toggle('zoom-pan-enabled', state.fullScreenZoom > 1);
 }
 
 function resetViewerImageZoom() {
   state.fullScreenZoom = 1;
+  resetViewerImagePan();
+  endViewerImageDrag();
   updateViewerImageZoom();
+}
+
+function resetViewerImagePan() {
+  state.fullScreenPanX = 0;
+  state.fullScreenPanY = 0;
 }
 
 function adjustViewerZoom(deltaDirection) {
   const nextZoom = state.fullScreenZoom + (deltaDirection * FULLSCREEN_ZOOM_STEP);
   state.fullScreenZoom = Math.max(FULLSCREEN_ZOOM_MIN, Math.min(FULLSCREEN_ZOOM_MAX, Number(nextZoom.toFixed(2))));
+  if (state.fullScreenZoom <= 1) {
+    resetViewerImagePan();
+    endViewerImageDrag();
+  }
   updateViewerImageZoom();
 }
 
@@ -400,6 +426,9 @@ function closeViewer() {
   }
 
   state.fullScreen = false;
+  resetViewerImagePan();
+  endViewerImageDrag();
+  state.suppressNextImageClick = false;
   viewer.classList.add('hidden');
   focusGridNavigation();
   updateKeepActionsVisibility();
@@ -913,6 +942,10 @@ async function copySelectedImageToClipboard() {
 function onViewerClick(event) {
   if (!state.fullScreen) return;
   if (event.target === viewerImage) {
+    if (state.suppressNextImageClick) {
+      state.suppressNextImageClick = false;
+      return;
+    }
     setStretchMode(!state.stretchMode);
     return;
   }
@@ -920,6 +953,60 @@ function onViewerClick(event) {
     return;
   }
   closeViewer();
+}
+
+function onViewerImagePointerDown(event) {
+  if (!state.fullScreen) return;
+  if (event.button !== 0) return;
+  if (state.fullScreenZoom <= 1) return;
+
+  event.preventDefault();
+  viewerImage.setPointerCapture(event.pointerId);
+
+  state.viewerDrag.active = true;
+  state.viewerDrag.pointerId = event.pointerId;
+  state.viewerDrag.lastClientX = event.clientX;
+  state.viewerDrag.lastClientY = event.clientY;
+  state.viewerDrag.moved = false;
+  viewerImage.classList.add('dragging');
+}
+
+function onViewerImagePointerMove(event) {
+  if (!state.viewerDrag.active || state.viewerDrag.pointerId !== event.pointerId) return;
+
+  event.preventDefault();
+  const deltaX = event.clientX - state.viewerDrag.lastClientX;
+  const deltaY = event.clientY - state.viewerDrag.lastClientY;
+
+  state.fullScreenPanX += deltaX;
+  state.fullScreenPanY += deltaY;
+  state.viewerDrag.lastClientX = event.clientX;
+  state.viewerDrag.lastClientY = event.clientY;
+
+  if (!state.viewerDrag.moved && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
+    state.viewerDrag.moved = true;
+  }
+
+  updateViewerImageZoom();
+}
+
+function onViewerImagePointerUpOrCancel(event) {
+  if (!state.viewerDrag.active || state.viewerDrag.pointerId !== event.pointerId) return;
+
+  if (state.viewerDrag.moved) {
+    state.suppressNextImageClick = true;
+  }
+  endViewerImageDrag();
+}
+
+function endViewerImageDrag() {
+  if (state.viewerDrag.active && state.viewerDrag.pointerId !== null && viewerImage.hasPointerCapture(state.viewerDrag.pointerId)) {
+    viewerImage.releasePointerCapture(state.viewerDrag.pointerId);
+  }
+  state.viewerDrag.active = false;
+  state.viewerDrag.pointerId = null;
+  state.viewerDrag.moved = false;
+  viewerImage.classList.remove('dragging');
 }
 
 function onViewerWheel(event) {
