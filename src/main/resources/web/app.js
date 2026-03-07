@@ -7,6 +7,12 @@ const FULLSCREEN_ZOOM_MIN = 0.1;
 const FULLSCREEN_ZOOM_MAX = 7;
 const FULLSCREEN_ZOOM_STEP = 0.2;
 
+const DATE_PART_TOKEN = '[\dxX]';
+const DATE_COMPACT_PATTERN = `${DATE_PART_TOKEN}{8}`;
+const DATE_SEPARATED_PATTERN = `${DATE_PART_TOKEN}{4}[-_. ]${DATE_PART_TOKEN}{2}[-_. ]${DATE_PART_TOKEN}{2}`;
+const DATE_EDGE_PATTERN = `(?:${DATE_COMPACT_PATTERN}|${DATE_SEPARATED_PATTERN})`;
+const DATE_ANYWHERE_PATTERN = `(^|[\\s._-])${DATE_EDGE_PATTERN}(?=$|[\\s._-])`;
+
 const state = {
   currentPath: '',
   images: [],
@@ -822,8 +828,7 @@ function removeDateParts(value) {
   if (!value) return '';
 
   let result = value;
-  result = result.replace(/^(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})\s*[-_. ]+\s*/i, '');
-  result = result.replace(/\s*[-_. ]+\s*(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})$/i, '');
+  result = result.replace(new RegExp(DATE_ANYWHERE_PATTERN, 'gi'), ' ');
 
   result = result
     .replace(/[._]{2,}/g, ' ')
@@ -1011,9 +1016,7 @@ function extractGameName(folderName) {
     .replace(/^[._\-\s]+|[._\-\s]+$/g, '');
 
   if (!value) return '';
-
-  value = value.replace(/^(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})\s*[-_. ]+\s*/i, '');
-  value = value.replace(/\s*[-_. ]+\s*(?:\d{8}|\d{4}[-_. ]\d{2}[-_. ]\d{2})$/i, '');
+  value = value.replace(new RegExp(DATE_ANYWHERE_PATTERN, 'gi'), ' ');
 
   value = value.replace(new RegExp(`\\s*[[(]\\s*${regionPattern}\\s*[)\\]]\\s*$`, 'i'), '');
   value = value.replace(new RegExp(`\\s*[-_. ]+\\s*${regionPattern}\\s*$`, 'i'), '');

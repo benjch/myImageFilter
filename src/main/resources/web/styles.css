@@ -20,9 +20,16 @@ body {
   flex-direction: column;
 }
 
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
 main {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .topbar {

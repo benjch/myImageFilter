@@ -9,34 +9,36 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="path-editor">
-      <button id="goParentBtn" type="button" class="shortcut-btn"><span class="key">⌫</span><span class="label">Parent</span></button>
-      <button id="loadImagesBtn" type="button" class="shortcut-btn"><span class="key">A</span><span class="label">Load images</span></button>
-      <button id="loadImageBtn" type="button" class="shortcut-btn"><span class="key">L</span><span class="label">Load image</span></button>
-      <button id="refreshBtn" type="button" class="shortcut-btn"><span class="key">F5</span><span class="label">Refresh</span></button>
-      <button id="uploadBtn" type="button" class="shortcut-btn"><span class="key">U</span><span class="label">Upload</span></button>
-      <button id="getNameBtn" type="button" class="shortcut-btn"><span class="key">N</span><span class="label">Get name</span></button>
-      <button id="sortBySizeBtn" type="button" class="shortcut-btn" aria-pressed="false"><span class="key">S</span><span class="label">By size: OFF</span></button>
-      <input id="folderPathInput" class="path-input" type="text" aria-label="Dossier courant" />
-      <button id="openFolderBtn" type="button">Ouvrir</button>
-    </div>
-    <div id="imageCount" class="count"></div>
-  </header>
+  <div class="app-header">
+    <header class="topbar">
+      <div class="path-editor">
+        <button id="goParentBtn" type="button" class="shortcut-btn"><span class="key">⌫</span><span class="label">Parent</span></button>
+        <button id="loadImagesBtn" type="button" class="shortcut-btn"><span class="key">A</span><span class="label">Load images</span></button>
+        <button id="loadImageBtn" type="button" class="shortcut-btn"><span class="key">L</span><span class="label">Load image</span></button>
+        <button id="refreshBtn" type="button" class="shortcut-btn"><span class="key">F5</span><span class="label">Refresh</span></button>
+        <button id="uploadBtn" type="button" class="shortcut-btn"><span class="key">U</span><span class="label">Upload</span></button>
+        <button id="getNameBtn" type="button" class="shortcut-btn"><span class="key">N</span><span class="label">Get name</span></button>
+        <button id="sortBySizeBtn" type="button" class="shortcut-btn" aria-pressed="false"><span class="key">S</span><span class="label">By size: OFF</span></button>
+        <input id="folderPathInput" class="path-input" type="text" aria-label="Dossier courant" />
+        <button id="openFolderBtn" type="button">Ouvrir</button>
+      </div>
+      <div id="imageCount" class="count"></div>
+    </header>
 
-  <section class="controls">
-    <div class="controls-group keep-group">
-      <label for="keepDirInput">Dossier Keep</label>
-      <input id="keepDirInput" type="text" placeholder="Choisir un dossier Keep" />
-      <button id="saveKeepBtn">Enregistrer</button>
+    <section class="controls">
+      <div class="controls-group keep-group">
+        <label for="keepDirInput">Dossier Keep</label>
+        <input id="keepDirInput" type="text" placeholder="Choisir un dossier Keep" />
+        <button id="saveKeepBtn">Enregistrer</button>
+      </div>
+      <div class="controls-group scrap-group">
+        <label for="googleSearchInput">Recherche Google</label>
+        <input id="googleSearchInput" type="text" placeholder="Nom du jeu région cover" />
+        <button id="scrapGoogleBtn" type="button">Open Google Images</button>
+        <button id="scrapAllGoogleBtn" type="button">Scrap</button>
+      </div>
+    </section>
     </div>
-    <div class="controls-group scrap-group">
-      <label for="googleSearchInput">Recherche Google</label>
-      <input id="googleSearchInput" type="text" placeholder="Nom du jeu région cover" />
-      <button id="scrapGoogleBtn" type="button">Open Google Images</button>
-      <button id="scrapAllGoogleBtn" type="button">Scrap</button>
-    </div>
-  </section>
 
   <main>
     <div id="grid" class="grid" tabindex="0"></div>
