@@ -429,29 +429,10 @@ function ensureSelectedVisible() {
     return;
   }
 
-  const visibilityMargin = 8;
-
-  const top = selected.offsetTop - visibilityMargin;
-  const bottom = selected.offsetTop + selected.offsetHeight + visibilityMargin;
-  const left = selected.offsetLeft - visibilityMargin;
-  const right = selected.offsetLeft + selected.offsetWidth + visibilityMargin;
-
-  const viewportTop = grid.scrollTop;
-  const viewportBottom = grid.scrollTop + grid.clientHeight;
-  const viewportLeft = grid.scrollLeft;
-  const viewportRight = grid.scrollLeft + grid.clientWidth;
-
-  if (top < viewportTop) {
-    grid.scrollTop = Math.max(0, top);
-  } else if (bottom > viewportBottom) {
-    grid.scrollTop = Math.max(0, bottom - grid.clientHeight);
-  }
-
-  if (left < viewportLeft) {
-    grid.scrollLeft = Math.max(0, left);
-  } else if (right > viewportRight) {
-    grid.scrollLeft = Math.max(0, right - grid.clientWidth);
-  }
+  selected.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest'
+  });
 }
 
 function currentEntry() {

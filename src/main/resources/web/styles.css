@@ -15,6 +15,7 @@ body {
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -30,6 +31,7 @@ main {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  display: flex;
 }
 
 .topbar {
@@ -148,7 +150,8 @@ button {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 14px 16px;
   padding: 12px;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   align-items: start;
   align-content: start;
