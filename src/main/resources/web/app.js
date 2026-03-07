@@ -1274,6 +1274,10 @@ function onKeyDown(e) {
     return;
   }
 
+  if (isEditableElementActive()) {
+    return;
+  }
+
   if (state.fullScreen && (isBackNavigationKey(e) || e.key === 'Escape')) {
     e.preventDefault();
     e.stopPropagation();
@@ -1374,10 +1378,6 @@ function onKeyDown(e) {
     } else if (e.key === '4') {
       keepCurrent('divers').catch(handleError);
     }
-    return;
-  }
-
-  if (isEditableElementActive()) {
     return;
   }
 
