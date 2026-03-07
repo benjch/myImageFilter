@@ -7,9 +7,11 @@ const FULLSCREEN_ZOOM_MIN = 0.1;
 const FULLSCREEN_ZOOM_MAX = 7;
 const FULLSCREEN_ZOOM_STEP = 0.2;
 
-const DATE_PART_TOKEN = '[\dxX]';
+const DATE_PART_TOKEN = '[\\dxX]';
 const DATE_COMPACT_PATTERN = `${DATE_PART_TOKEN}{8}`;
-const DATE_SEPARATED_PATTERN = `${DATE_PART_TOKEN}{4}[-_. ]${DATE_PART_TOKEN}{2}[-_. ]${DATE_PART_TOKEN}{2}`;
+const DATE_YEAR_TOKEN_PATTERN = `${DATE_PART_TOKEN}{4}`;
+const DATE_MONTH_DAY_TOKEN_PATTERN = `${DATE_PART_TOKEN}{1,2}`;
+const DATE_SEPARATED_PATTERN = `${DATE_YEAR_TOKEN_PATTERN}[-_. ]+${DATE_MONTH_DAY_TOKEN_PATTERN}[-_. ]+${DATE_MONTH_DAY_TOKEN_PATTERN}`;
 const DATE_EDGE_PATTERN = `(?:${DATE_COMPACT_PATTERN}|${DATE_SEPARATED_PATTERN})`;
 const DATE_ANYWHERE_PATTERN = `(^|[\\s._-])${DATE_EDGE_PATTERN}(?=$|[\\s._-])`;
 
@@ -828,6 +830,11 @@ function removeDateParts(value) {
   if (!value) return '';
 
   let result = value;
+
+  // Nettoie en priorité les dates en début de dossier (ex: 1990_11_XX_...).
+  result = result.replace(new RegExp(`^\\s*[._-]*${DATE_YEAR_TOKEN_PATTERN}[-_. ]+${DATE_MONTH_DAY_TOKEN_PATTERN}[-_. ]+${DATE_MONTH_DAY_TOKEN_PATTERN}(?=$|[-_. ])`, 'gi'), ' ');
+
+  // Nettoie ensuite toutes les dates 8 chiffres ou 4-2-2 avec chiffres/X partout dans le nom.
   result = result.replace(new RegExp(DATE_ANYWHERE_PATTERN, 'gi'), ' ');
 
   result = result
