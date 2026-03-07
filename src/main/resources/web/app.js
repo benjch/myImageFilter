@@ -1257,14 +1257,14 @@ function isGoLastKey(event) {
   return event.key === 'End' || event.key === 'Fin';
 }
 
-function selectFirstImageInMosaic() {
-  if (state.images.length === 0) return;
+function selectFirstEntryInMosaic() {
+  if (state.entries.length === 0) return;
   select(0);
 }
 
-function selectLastImageInMosaic() {
-  if (state.images.length === 0) return;
-  select(state.images.length - 1);
+function selectLastEntryInMosaic() {
+  if (state.entries.length === 0) return;
+  select(state.entries.length - 1);
 }
 
 function onKeyDown(e) {
@@ -1383,10 +1383,10 @@ function onKeyDown(e) {
 
   if (isGoFirstKey(e)) {
     e.preventDefault();
-    selectFirstImageInMosaic();
+    selectFirstEntryInMosaic();
   } else if (isGoLastKey(e)) {
     e.preventDefault();
-    selectLastImageInMosaic();
+    selectLastEntryInMosaic();
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
     select(state.selectedIndex - 1);
