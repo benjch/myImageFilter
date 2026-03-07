@@ -1,6 +1,6 @@
 const DEFAULT_START_PATH = 'C:\\Users\\NR5145\\HD_D\\benjch\\gitBenjch\\myScrapper\\cover';
 
-const VIEWER_TOOLBAR_BASE_TEXT = 'Échap: retour mosaïque • ←/→ navigation • Suppr supprimer • 1/2/3/4 keep • Backspace/Échap (mosaïque): dossier parent';
+const VIEWER_TOOLBAR_BASE_TEXT = 'Échap: retour mosaïque • ←/→ navigation • Début/Fin: première/dernière image • Suppr supprimer • 1/2/3/4 keep • Backspace/Échap (mosaïque): dossier parent';
 
 const RESTORE_STORAGE_KEY = 'myImageFilter.uiState';
 const FULLSCREEN_ZOOM_MIN = 0.1;
@@ -425,8 +425,32 @@ function select(index) {
 
 function ensureSelectedVisible() {
   const selected = grid.children[state.selectedIndex];
-  if (selected) {
-    selected.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (!selected) {
+    return;
+  }
+
+  const visibilityMargin = 8;
+
+  const top = selected.offsetTop - visibilityMargin;
+  const bottom = selected.offsetTop + selected.offsetHeight + visibilityMargin;
+  const left = selected.offsetLeft - visibilityMargin;
+  const right = selected.offsetLeft + selected.offsetWidth + visibilityMargin;
+
+  const viewportTop = grid.scrollTop;
+  const viewportBottom = grid.scrollTop + grid.clientHeight;
+  const viewportLeft = grid.scrollLeft;
+  const viewportRight = grid.scrollLeft + grid.clientWidth;
+
+  if (top < viewportTop) {
+    grid.scrollTop = Math.max(0, top);
+  } else if (bottom > viewportBottom) {
+    grid.scrollTop = Math.max(0, bottom - grid.clientHeight);
+  }
+
+  if (left < viewportLeft) {
+    grid.scrollLeft = Math.max(0, left);
+  } else if (right > viewportRight) {
+    grid.scrollLeft = Math.max(0, right - grid.clientWidth);
   }
 }
 
@@ -1244,6 +1268,24 @@ function shouldIgnoreGlobalShortcut(event) {
   return isEditableElementActive();
 }
 
+function isGoFirstKey(event) {
+  return event.key === 'Home' || event.key === 'Début';
+}
+
+function isGoLastKey(event) {
+  return event.key === 'End' || event.key === 'Fin';
+}
+
+function selectFirstImageInMosaic() {
+  if (state.images.length === 0) return;
+  select(0);
+}
+
+function selectLastImageInMosaic() {
+  if (state.images.length === 0) return;
+  select(state.images.length - 1);
+}
+
 function onKeyDown(e) {
   if (!isEditableElementActive() && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === 'F5') {
     e.preventDefault();
@@ -1318,7 +1360,19 @@ function onKeyDown(e) {
       return;
     }
 
-    if (e.key === 'ArrowLeft') {
+    if (isGoFirstKey(e)) {
+      e.preventDefault();
+      state.currentImageIndex = 0;
+      showCurrentImage();
+    } else if (isGoLastKey(e)) {
+      e.preventDefault();
+      const visibleImages = visibleImagesInCurrentOrder();
+      if (visibleImages.length === 0) {
+        return;
+      }
+      state.currentImageIndex = visibleImages.length - 1;
+      showCurrentImage();
+    } else if (e.key === 'ArrowLeft') {
       state.currentImageIndex--;
       showCurrentImage();
     } else if (e.key === 'ArrowRight') {
@@ -1346,7 +1400,13 @@ function onKeyDown(e) {
     return;
   }
 
-  if (e.key === 'ArrowLeft') {
+  if (isGoFirstKey(e)) {
+    e.preventDefault();
+    selectFirstImageInMosaic();
+  } else if (isGoLastKey(e)) {
+    e.preventDefault();
+    selectLastImageInMosaic();
+  } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
     select(state.selectedIndex - 1);
   } else if (e.key === 'ArrowRight') {
