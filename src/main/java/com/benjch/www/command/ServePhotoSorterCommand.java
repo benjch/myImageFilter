@@ -42,7 +42,7 @@ public class ServePhotoSorterCommand implements Command {
     @Option(name = "-keepDir", usage = "Default keep folder", required = false)
     private String keepDir;
 
-    private static final int MAX_JSON_STRING_LENGTH = 14 * 1024 * 1024; // ~10 MiB binary payload in base64
+    private static final int MAX_JSON_STRING_LENGTH = Integer.MAX_VALUE; // No app-level cap on JSON string payload size
 
     private final ObjectMapper objectMapper = new ObjectMapper(
             JsonFactory.builder()

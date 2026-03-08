@@ -48,7 +48,6 @@ public class PhotoService {
     private static final Pattern META_CONTENT_PATTERN = Pattern.compile("<meta\\b[^>]*\\b(?:property|name)\\s*=\\s*(['\"])(?:og:image|twitter:image)\\1[^>]*\\bcontent\\s*=\\s*(['\"])(.*?)\\2", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
     private static final String BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-    private static final int MAX_CLIPBOARD_IMAGE_BYTES = 10 * 1024 * 1024;
     private static final int DEFAULT_GOOGLE_SCRAP_PARALLELISM = 50;
     private static final int MAX_GOOGLE_SCRAP_PARALLELISM = 50;
 
@@ -495,10 +494,6 @@ public class PhotoService {
             bytes = Base64.getDecoder().decode(imageBase64);
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Invalid base64 image payload");
-        }
-
-        if (bytes.length > MAX_CLIPBOARD_IMAGE_BYTES) {
-            throw new IllegalArgumentException("Clipboard image too large (max 10 Mo)");
         }
 
         String extension = detectExtension(bytes).orElseGet(() -> extensionFromMime(mimeType).orElseThrow(() -> new IllegalArgumentException("Unsupported clipboard image format")));
