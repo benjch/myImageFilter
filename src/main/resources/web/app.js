@@ -403,9 +403,12 @@ function rebuildEntries() {
   const filteredImages = state.imageNameFilterRegex
     ? images.filter((image) => state.imageNameFilterRegex.test(image.name || ''))
     : images;
+  const filteredFolders = state.imageNameFilterRegex
+    ? state.folders.filter((folder) => state.imageNameFilterRegex.test(folder.name || ''))
+    : state.folders;
   state.entries = [
     ...filteredImages.map((x) => ({ ...x, type: 'image' })),
-    ...state.folders.map((x) => ({ ...x, type: 'folder' }))
+    ...filteredFolders.map((x) => ({ ...x, type: 'folder' }))
   ];
 }
 
