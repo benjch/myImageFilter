@@ -48,6 +48,7 @@ main {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .path-input,
@@ -98,6 +99,32 @@ button {
 }
 
 .shortcut-btn .label {
+  white-space: nowrap;
+}
+
+
+.image-name-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.image-name-filter label {
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+}
+
+#imageNameFilterInput {
+  min-width: 180px;
+}
+
+#imageNameFilterInput.filter-invalid {
+  border-color: #c53030;
+  background: #fff5f5;
+}
+
+#scrapGoogleBtn {
   white-space: nowrap;
 }
 

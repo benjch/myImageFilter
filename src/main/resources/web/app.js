@@ -38,7 +38,9 @@ const state = {
     moved: false
   },
   suppressNextImageClick: false,
-  sortBySizeEnabled: false
+  sortBySizeEnabled: false,
+  imageNameFilterRaw: '',
+  imageNameFilterRegex: null
 };
 
 const grid = document.getElementById('grid');
@@ -51,6 +53,9 @@ const refreshBtn = document.getElementById('refreshBtn');
 const uploadBtn = document.getElementById('uploadBtn');
 const getNameBtn = document.getElementById('getNameBtn');
 const sortBySizeBtn = document.getElementById('sortBySizeBtn');
+const imageNameFilterForm = document.getElementById('imageNameFilterForm');
+const imageNameFilterInput = document.getElementById('imageNameFilterInput');
+const clearImageNameFilterBtn = document.getElementById('clearImageNameFilterBtn');
 const imageCount = document.getElementById('imageCount');
 const viewer = document.getElementById('viewer');
 const viewerImage = document.getElementById('viewerImage');
@@ -100,6 +105,26 @@ if (getNameBtn) {
 if (sortBySizeBtn) {
   sortBySizeBtn.addEventListener('click', () => {
     setSortBySizeEnabled(!state.sortBySizeEnabled);
+  });
+}
+if (imageNameFilterForm) {
+  imageNameFilterForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    applyImageNameFilterFromInput();
+  });
+}
+if (imageNameFilterInput) {
+  imageNameFilterInput.addEventListener('input', () => {
+    imageNameFilterInput.classList.remove('filter-invalid');
+  });
+}
+if (clearImageNameFilterBtn) {
+  clearImageNameFilterBtn.addEventListener('click', () => {
+    if (imageNameFilterInput) {
+      imageNameFilterInput.value = '';
+      imageNameFilterInput.classList.remove('filter-invalid');
+    }
+    setImageNameFilter('');
   });
 }
 if (goParentBtn) {
@@ -158,7 +183,8 @@ function persistUiState() {
     selectedPath: selectedEntry?.path || null,
     selectedImagePath,
     fullScreen: Boolean(state.fullScreen && selectedImagePath),
-    sortBySizeEnabled: Boolean(state.sortBySizeEnabled)
+    sortBySizeEnabled: Boolean(state.sortBySizeEnabled),
+    imageNameFilterRaw: state.imageNameFilterRaw || ''
   };
 
   localStorage.setItem(RESTORE_STORAGE_KEY, JSON.stringify(payload));
@@ -184,6 +210,7 @@ function readUiStateFromUrl() {
   const selectedImagePath = url.searchParams.get('image');
   const fullScreen = url.searchParams.get('fullscreen') === '1';
   const sortBySizeEnabled = url.searchParams.get('sortBySize') === '1';
+  const imageNameFilterRaw = url.searchParams.get('nameRegex') || '';
 
   if (!currentPath) {
     return null;
@@ -194,7 +221,8 @@ function readUiStateFromUrl() {
     selectedPath,
     selectedImagePath,
     fullScreen,
-    sortBySizeEnabled
+    sortBySizeEnabled,
+    imageNameFilterRaw
   };
 }
 
@@ -231,6 +259,12 @@ function syncUrlWithUiState(payload) {
     url.searchParams.delete('sortBySize');
   }
 
+  if (payload.imageNameFilterRaw) {
+    url.searchParams.set('nameRegex', payload.imageNameFilterRaw);
+  } else {
+    url.searchParams.delete('nameRegex');
+  }
+
   const nextUrl = `${url.pathname}${url.search}${url.hash}`;
   if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
     window.history.replaceState(null, '', nextUrl);
@@ -247,6 +281,14 @@ async function init() {
   const preferredPath = persisted?.selectedPath || persisted?.selectedImagePath || null;
 
   setSortBySizeEnabled(Boolean(persisted?.sortBySizeEnabled), { skipPersist: true });
+  try {
+    setImageNameFilter(persisted?.imageNameFilterRaw || '', { skipPersist: true });
+  } catch (_error) {
+    setImageNameFilter('', { skipPersist: true });
+  }
+  if (imageNameFilterInput) {
+    imageNameFilterInput.value = state.imageNameFilterRaw;
+  }
 
   try {
     await loadFolder(startupPath, preferredPath);
@@ -305,13 +347,64 @@ function compareImagesBySizeDesc(left, right) {
   return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
 }
 
+function compileImageNameRegex(rawFilter) {
+  const normalized = (rawFilter || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  return new RegExp(normalized, 'i');
+}
+
+function applyImageNameFilterFromInput() {
+  if (!imageNameFilterInput) return;
+  const nextRaw = imageNameFilterInput.value;
+  try {
+    setImageNameFilter(nextRaw);
+    imageNameFilterInput.classList.remove('filter-invalid');
+  } catch (error) {
+    imageNameFilterInput.classList.add('filter-invalid');
+    showToast(`Regex invalide : ${error.message}`);
+  }
+}
+
+function setImageNameFilter(rawFilter, options = {}) {
+  const selectedPath = currentEntry()?.path || null;
+  const currentViewerImagePath = state.fullScreen ? currentViewerImage()?.path || null : null;
+  const compiledRegex = compileImageNameRegex(rawFilter);
+  state.imageNameFilterRaw = (rawFilter || '').trim();
+  state.imageNameFilterRegex = compiledRegex;
+
+  rebuildEntries();
+  if (selectedPath) {
+    const selectedIndex = state.entries.findIndex((entry) => entry.path === selectedPath);
+    state.selectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  } else if (state.selectedIndex >= state.entries.length) {
+    state.selectedIndex = Math.max(0, state.entries.length - 1);
+  }
+
+  if (state.fullScreen && currentViewerImagePath) {
+    const visibleImages = visibleImagesInCurrentOrder();
+    const nextViewerIndex = visibleImages.findIndex((image) => image.path === currentViewerImagePath);
+    state.currentImageIndex = nextViewerIndex >= 0 ? nextViewerIndex : 0;
+    showCurrentImage();
+  }
+
+  render();
+  if (!options.skipPersist) {
+    persistUiState();
+  }
+}
+
 function rebuildEntries() {
   const images = [...state.images];
   if (state.sortBySizeEnabled) {
     images.sort(compareImagesBySizeDesc);
   }
+  const filteredImages = state.imageNameFilterRegex
+    ? images.filter((image) => state.imageNameFilterRegex.test(image.name || ''))
+    : images;
   state.entries = [
-    ...images.map((x) => ({ ...x, type: 'image' })),
+    ...filteredImages.map((x) => ({ ...x, type: 'image' })),
     ...state.folders.map((x) => ({ ...x, type: 'folder' }))
   ];
 }
@@ -376,7 +469,10 @@ function focusGridNavigation() {
 
 function render() {
   folderPathInput.value = state.currentPath || DEFAULT_START_PATH;
-  imageCount.textContent = `${state.images.length} image(s)`;
+  const filteredCount = state.entries.filter((entry) => entry.type === 'image').length;
+  imageCount.textContent = state.imageNameFilterRegex
+    ? `${filteredCount}/${state.images.length} image(s)`
+    : `${state.images.length} image(s)`;
 
   const fragment = document.createDocumentFragment();
   state.entries.forEach((entry, index) => {

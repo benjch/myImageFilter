@@ -21,6 +21,12 @@
         <button id="sortBySizeBtn" type="button" class="shortcut-btn" aria-pressed="false"><span class="key">S</span><span class="label">By size: OFF</span></button>
         <input id="folderPathInput" class="path-input" type="text" aria-label="Dossier courant" />
         <button id="openFolderBtn" type="button">Ouvrir</button>
+        <form id="imageNameFilterForm" class="image-name-filter" autocomplete="off">
+          <label for="imageNameFilterInput">Filtre regex</label>
+          <input id="imageNameFilterInput" type="text" placeholder="ex: ^cover.*\\.png$" aria-label="Filtrer les images par expression régulière" />
+          <button id="applyImageNameFilterBtn" type="submit">Filtrer</button>
+          <button id="clearImageNameFilterBtn" type="button">Effacer</button>
+        </form>
       </div>
       <div id="imageCount" class="count"></div>
     </header>
