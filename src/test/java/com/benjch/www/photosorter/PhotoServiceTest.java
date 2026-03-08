@@ -96,15 +96,36 @@ class PhotoServiceTest {
         String html = """
                 <html><body>
                 <img src=\"data:image/png;base64,%s\" />
+                <a href=\"data:image/png;base64,%s\">direct-data-link</a>
                 <img src=\"notaurl\" />
                 </body></html>
-                """.formatted(PNG_1X1_BASE64);
+                """.formatted(PNG_1X1_BASE64, PNG_1X1_BASE64);
 
         PhotoService.HtmlImportResult result = service.importFromHtml(folder.toString(), html);
 
-        assertEquals(1, result.importedCount());
-        assertEquals(1, result.files().size());
+        assertEquals(2, result.importedCount());
+        assertEquals(2, result.files().size());
         assertTrue(Files.exists(folder.resolve(result.files().get(0))));
+        assertTrue(Files.exists(folder.resolve(result.files().get(1))));
+    }
+
+    @Test
+    void extractImportSourcesFromHtmlShouldIncludeImgAndHrefAndDecodeImgurl() {
+        PhotoService service = new PhotoService(new ThumbnailCache());
+        String html = """
+                <img src="https://cdn.site.com/a.jpg" />
+                <a href="https://cdn.site.com/b.png">direct</a>
+                <a href="/imgres?imgurl=https%3A%2F%2Fcdn.site.com%2Fc.webp&imgrefurl=https%3A%2F%2Fsite.com%2Fgame">google</a>
+                <a href="https://cdn.site.com/b.png">duplicate</a>
+                """;
+
+        List<String> sources = service.extractImportSourcesFromHtml(html);
+
+        assertEquals(List.of(
+                "https://cdn.site.com/a.jpg",
+                "https://cdn.site.com/b.png",
+                "https://cdn.site.com/c.webp"
+        ), sources);
     }
 
     @Test

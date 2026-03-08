@@ -42,6 +42,7 @@ public class PhotoService {
 
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
     private static final Pattern IMG_SRC_PATTERN = Pattern.compile("<img\\b[^>]*\\bsrc\\s*=\\s*(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern ANCHOR_HREF_PATTERN = Pattern.compile("<a\\b[^>]*\\bhref\\s*=\\s*(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern GOOGLE_IMAGE_URL_PATTERN = Pattern.compile("https?://[^\"\'\s<>]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern GOOGLE_RESULT_LINK_PATTERN = Pattern.compile("(?:/imgres\\?|https?://www\\.google\\.[^/]+/imgres\\?)[^\"\'\\s<>]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern META_CONTENT_PATTERN = Pattern.compile("<meta\\b[^>]*\\b(?:property|name)\\s*=\\s*(['\"])(?:og:image|twitter:image)\\1[^>]*\\bcontent\\s*=\\s*(['\"])(.*?)\\2", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -196,12 +197,7 @@ public class PhotoService {
         }
 
         List<String> files = new ArrayList<>();
-        Matcher matcher = IMG_SRC_PATTERN.matcher(html);
-        while (matcher.find()) {
-            String src = matcher.group(2) == null ? "" : matcher.group(2).trim();
-            if (src.isBlank()) {
-                continue;
-            }
+        for (String src : extractImportSourcesFromHtml(html)) {
             try {
                 ImportedImage imported = loadImageFromSrc(src);
                 Path target = findAvailableName(folder, imported.baseName(), "." + imported.extension());
@@ -213,6 +209,31 @@ public class PhotoService {
         }
 
         return new HtmlImportResult(files.size(), files);
+    }
+
+    List<String> extractImportSourcesFromHtml(String html) {
+        Set<String> sources = new java.util.LinkedHashSet<>();
+        String safeHtml = html == null ? "" : html;
+
+        Matcher imageMatcher = IMG_SRC_PATTERN.matcher(safeHtml);
+        while (imageMatcher.find()) {
+            String src = imageMatcher.group(2) == null ? "" : imageMatcher.group(2).trim();
+            if (!src.isBlank()) {
+                sources.add(src);
+            }
+        }
+
+        Matcher hrefMatcher = ANCHOR_HREF_PATTERN.matcher(safeHtml);
+        while (hrefMatcher.find()) {
+            String href = hrefMatcher.group(2) == null ? "" : hrefMatcher.group(2).trim();
+            if (href.isBlank()) {
+                continue;
+            }
+            Optional<String> imgUrl = parseQueryParameter(href, "imgurl");
+            sources.add(imgUrl.orElse(href));
+        }
+
+        return new ArrayList<>(sources);
     }
 
 
