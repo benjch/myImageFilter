@@ -62,6 +62,7 @@ const viewerImage = document.getElementById('viewerImage');
 const viewerToolbar = document.getElementById('viewerToolbar');
 const stretchToggleBtn = document.getElementById('stretchToggleBtn');
 const mosaicModeBtn = document.getElementById('mosaicModeBtn');
+const viewerFileName = document.getElementById('viewerFileName');
 const toast = document.getElementById('toast');
 const keepDirInput = document.getElementById('keepDirInput');
 const keepActions = document.getElementById('keepActions');
@@ -613,6 +614,7 @@ function showCurrentImage() {
     viewer.classList.add('hidden');
     state.fullScreen = false;
     if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
+    if (viewerFileName) viewerFileName.textContent = '';
     persistUiState();
     return;
   }
@@ -621,6 +623,9 @@ function showCurrentImage() {
   resetViewerImageZoom();
   viewerImage.dataset.imagePath = img.path;
   viewerImage.src = `/api/image?path=${encodeURIComponent(img.path)}`;
+  if (viewerFileName) {
+    viewerFileName.textContent = img.name || img.path;
+  }
   updateViewerToolbar(img.path);
   persistUiState();
 }
@@ -707,6 +712,7 @@ function closeViewer() {
   focusGridNavigation();
   updateKeepActionsVisibility();
   if (viewerToolbar) viewerToolbar.textContent = VIEWER_TOOLBAR_BASE_TEXT;
+  if (viewerFileName) viewerFileName.textContent = '';
   persistUiState();
 }
 
