@@ -53,6 +53,7 @@ Puis ouvrir : `http://localhost:8080`
 - `D` : supprimer image courante puis passer automatiquement à la suivante/précédente
 - `K` : garder image courante
 - `Échap` : retour mosaïque dossier courant
+- clic droit souris : retour mosaïque dossier courant
 - `↑` : quitter le plein écran et revenir en mosaïque du dossier courant
 - `Retour arrière` : remonter au dossier parent (depuis mosaïque ou plein écran)
 

@@ -143,6 +143,7 @@ document.addEventListener('keydown', onKeyDown);
 window.addEventListener('beforeunload', persistUiState);
 viewer.addEventListener('wheel', onViewerWheel, { passive: false });
 viewer.addEventListener('click', onViewerClick);
+viewer.addEventListener('contextmenu', onViewerContextMenu);
 viewerImage.addEventListener('pointerdown', onViewerImagePointerDown);
 viewerImage.addEventListener('pointermove', onViewerImagePointerMove);
 viewerImage.addEventListener('pointerup', onViewerImagePointerUpOrCancel);
@@ -1298,6 +1299,12 @@ function onViewerClick(event) {
   if (event.target !== viewer) {
     return;
   }
+  closeViewer();
+}
+
+function onViewerContextMenu(event) {
+  if (!state.fullScreen) return;
+  event.preventDefault();
   closeViewer();
 }
 
