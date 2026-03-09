@@ -6,6 +6,7 @@ const RESTORE_STORAGE_KEY = 'myImageFilter.uiState';
 const FULLSCREEN_ZOOM_MIN = 0.1;
 const FULLSCREEN_ZOOM_MAX = 7;
 const FULLSCREEN_ZOOM_STEP = 0.2;
+const POST_DELETE_OPEN_GUARD_MS = 450;
 
 const DATE_PART_TOKEN = '[\\dxX]';
 const DATE_COMPACT_PATTERN = `${DATE_PART_TOKEN}{8}`;
@@ -38,6 +39,7 @@ const state = {
     moved: false
   },
   suppressNextImageClick: false,
+  blockOpenUntilTs: 0,
   sortBySizeEnabled: false,
   imageNameFilterRaw: '',
   imageNameFilterRegex: null
@@ -166,6 +168,10 @@ setStretchMode(false);
 updateSortBySizeButtonLabel();
 
 grid.addEventListener('click', (event) => {
+  if (isOpenGuardActive()) {
+    showToast('Patientez un instant avant d’ouvrir la prochaine image');
+    return;
+  }
   const tile = event.target.closest('.tile');
   if (!tile) return;
   const index = Number(tile.dataset.index);
@@ -741,7 +747,10 @@ async function deleteCurrent() {
 
   await api('/api/delete', 'POST', { path: entry.path });
   showToast(`Supprimé : ${entry.name}`);
-  await loadFolder(state.currentPath, mosaicPreferredPath);
+  applyPostDeleteOpenGuard();
+  removeImageFromCurrentState(entry.path, mosaicPreferredPath);
+  updateGoogleSearchSuggestion();
+  persistUiState();
 
   if (state.fullScreen) {
     const refreshedVisibleImages = visibleImagesInCurrentOrder();
@@ -752,6 +761,39 @@ async function deleteCurrent() {
     state.currentImageIndex = Math.min(currentImageIdx, refreshedVisibleImages.length - 1);
     showCurrentImage();
   }
+}
+
+function applyPostDeleteOpenGuard() {
+  state.blockOpenUntilTs = Date.now() + POST_DELETE_OPEN_GUARD_MS;
+}
+
+function isOpenGuardActive() {
+  return Date.now() < state.blockOpenUntilTs;
+}
+
+function removeImageFromCurrentState(deletedPath, preferredPath = null) {
+  state.images = state.images.filter((image) => image.path !== deletedPath);
+  rebuildEntries();
+
+  if (state.entries.length === 0) {
+    state.selectedIndex = 0;
+    render();
+    return;
+  }
+
+  if (preferredPath) {
+    const preferredIndex = state.entries.findIndex((entry) => entry.path === preferredPath);
+    if (preferredIndex >= 0) {
+      state.selectedIndex = preferredIndex;
+      render();
+      return;
+    }
+  }
+
+  if (state.selectedIndex >= state.entries.length) {
+    state.selectedIndex = Math.max(0, state.entries.length - 1);
+  }
+  render();
 }
 
 async function keepCurrent(variant = 'normal') {
