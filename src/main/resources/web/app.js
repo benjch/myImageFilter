@@ -1383,9 +1383,20 @@ function onKeyDown(e) {
     return;
   }
 
-  if (state.fullScreen && (isBackNavigationKey(e) || e.key === 'Escape')) {
+  if (state.fullScreen && isBackNavigationKey(e)) {
     e.preventDefault();
     e.stopPropagation();
+    closeViewer();
+    return;
+  }
+
+  if (state.fullScreen && e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    if (state.fullScreenZoom > 1) {
+      resetViewerImageZoom();
+      return;
+    }
     closeViewer();
     return;
   }
