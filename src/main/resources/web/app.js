@@ -180,6 +180,8 @@ grid.addEventListener('click', (event) => {
   openSelected();
 });
 
+grid.addEventListener('contextmenu', onMosaicContextMenu);
+
 function persistUiState() {
   const selectedEntry = currentEntry();
   const selectedImagePath = state.fullScreen
@@ -1306,6 +1308,12 @@ function onViewerContextMenu(event) {
   if (!state.fullScreen) return;
   event.preventDefault();
   closeViewer();
+}
+
+function onMosaicContextMenu(event) {
+  if (state.fullScreen) return;
+  event.preventDefault();
+  goParent().catch(handleError);
 }
 
 function onViewerImagePointerDown(event) {
