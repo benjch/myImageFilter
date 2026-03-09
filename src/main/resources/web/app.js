@@ -477,6 +477,9 @@ function setSortBySizeEnabled(enabled, options = {}) {
 
 function focusGridNavigation() {
   const active = document.activeElement;
+  if (active instanceof HTMLElement && imageNameFilterForm?.contains(active)) {
+    return;
+  }
   if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
     active.blur();
   }
