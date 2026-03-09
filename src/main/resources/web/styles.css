@@ -199,6 +199,25 @@ button {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 3px #1032E0;
   background: #f7fbff;
+  animation: selected-tile-pulse 1s steps(1, end) infinite;
+}
+
+@keyframes selected-tile-pulse {
+  0%,
+  49% {
+    box-shadow: inset 0 0 0 3px #1032E0;
+  }
+
+  50%,
+  100% {
+    box-shadow: inset 0 0 0 3px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile.selected {
+    animation: none;
+  }
 }
 
 .thumb-frame {
