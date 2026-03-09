@@ -333,6 +333,12 @@ button {
   color: #7fd2ff;
 }
 
+
+.viewer.image-loading img,
+.viewer.image-error img {
+  opacity: 0;
+}
+
 .viewer img { max-width: 95vw; max-height: 92vh; object-fit: contain; touch-action: none; user-select: none; cursor: zoom-in; z-index: 21; }
 .viewer:not(.stretch-mode) img { margin-top: 108px; max-height: calc(100vh - 170px); }
 .viewer img.zoom-pan-enabled { cursor: grab; }

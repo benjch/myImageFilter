@@ -630,6 +630,8 @@ function showCurrentImage() {
   state.currentImageIndex = Math.max(0, Math.min(visibleImages.length - 1, state.currentImageIndex));
   const img = visibleImages[state.currentImageIndex];
   resetViewerImageZoom();
+  viewer.classList.add('image-loading');
+  viewer.classList.remove('image-error');
   viewerImage.dataset.imagePath = img.path;
   viewerImage.src = `/api/image?path=${encodeURIComponent(img.path)}`;
   if (viewerFileName) {
@@ -693,11 +695,22 @@ viewerImage.addEventListener('load', () => {
   if (!state.fullScreen) return;
   const currentImage = currentViewerImage();
   if (!currentImage || viewerImage.dataset.imagePath !== currentImage.path) return;
+  viewer.classList.remove('image-loading');
+  viewer.classList.remove('image-error');
   const width = viewerImage.naturalWidth;
   const height = viewerImage.naturalHeight;
   if (!width || !height) return;
   const fileSizeLabel = formatImageSize(currentImage.sizeBytes);
   updateViewerToolbar(currentImage.path, `${width}x${height}`, fileSizeLabel);
+});
+
+viewerImage.addEventListener('error', () => {
+  if (!state.fullScreen) return;
+  const currentImage = currentViewerImage();
+  if (!currentImage || viewerImage.dataset.imagePath !== currentImage.path) return;
+  viewer.classList.remove('image-loading');
+  viewer.classList.add('image-error');
+  updateViewerToolbar(currentImage.path, 'Chargement impossible', formatImageSize(currentImage.sizeBytes));
 });
 
 function closeViewer() {
@@ -717,6 +730,8 @@ function closeViewer() {
   resetViewerImagePan();
   endViewerImageDrag();
   state.suppressNextImageClick = false;
+  viewer.classList.remove('image-loading');
+  viewer.classList.remove('image-error');
   viewer.classList.add('hidden');
   focusGridNavigation();
   updateKeepActionsVisibility();
