@@ -119,6 +119,9 @@ if (imageNameFilterForm) {
 if (imageNameFilterInput) {
   imageNameFilterInput.addEventListener('input', () => {
     imageNameFilterInput.classList.remove('filter-invalid');
+    if (!state.fullScreen) {
+      applyImageNameFilterFromInput();
+    }
   });
 }
 if (clearImageNameFilterBtn) {
